@@ -826,7 +826,9 @@ export default function PendidikanView({
     if (classText === 'Tanpa Kelas') {
       if (lembagaId) {
         currentClasses = currentClasses.filter(cls => {
-          const c = kelasList.find(x => x.nama.trim().toLowerCase() === cls.trim().toLowerCase() && x.lembagaId === lembagaId);
+          const lowerCls = cls.trim().toLowerCase();
+          if (lowerCls === 'calon peserta didik' || lowerCls === 'calon pelajar') return false;
+          const c = kelasList.find(x => x.nama.trim().toLowerCase() === lowerCls && x.lembagaId === lembagaId);
           return !c || c.lembagaId !== lembagaId;
         });
       } else {
@@ -878,13 +880,15 @@ export default function PendidikanView({
       return c ? lembagasList.find(l => l.id === c.lembagaId) : null;
     }).filter(Boolean) as Lembaga[];
 
-    if (targetLembagaObj && !activeLembagasOfStudent.some(l => l.id === targetLembagaObj.id)) {
+    if (targetLembagaObj && classText !== 'Tanpa Kelas' && !activeLembagasOfStudent.some(l => l.id === targetLembagaObj.id)) {
       activeLembagasOfStudent.push(targetLembagaObj);
     }
 
-    const activeInternalLembagaIds = activeLembagasOfStudent
+    let activeInternalLembagaIds = activeLembagasOfStudent
       .map(l => l.id);
-    if (targetLembagaObj && classText !== 'Tanpa Kelas') {
+    if (classText === 'Tanpa Kelas' && targetLembagaObj) {
+      activeInternalLembagaIds = activeInternalLembagaIds.filter(id => id !== targetLembagaObj.id);
+    } else if (targetLembagaObj && classText !== 'Tanpa Kelas') {
       if (!activeInternalLembagaIds.includes(targetLembagaObj.id)) {
         activeInternalLembagaIds.push(targetLembagaObj.id);
       }
@@ -935,7 +939,7 @@ export default function PendidikanView({
           });
         }
         
-        if (!currentClasses.some(cls => cls.trim().toLowerCase() === targetClassName.trim().toLowerCase())) {
+        if (targetClassName !== 'Tanpa Kelas' && !currentClasses.some(cls => cls.trim().toLowerCase() === targetClassName.trim().toLowerCase())) {
           currentClasses.push(targetClassName.trim());
         }
         
@@ -952,13 +956,15 @@ export default function PendidikanView({
           return c ? lembagasList.find(l => l.id === c.lembagaId) : null;
         }).filter(Boolean) as Lembaga[];
 
-        if (targetLembaga && !activeLembagasOfStudent.some(l => l.id === targetLembaga.id)) {
+        if (targetLembaga && targetClassName !== 'Tanpa Kelas' && !activeLembagasOfStudent.some(l => l.id === targetLembaga.id)) {
           activeLembagasOfStudent.push(targetLembaga);
         }
 
-        const activeInternalLembagaIds = activeLembagasOfStudent
+        let activeInternalLembagaIds = activeLembagasOfStudent
           .map(l => l.id);
-        if (targetLembaga) {
+        if (targetClassName === 'Tanpa Kelas' && targetLembaga) {
+          activeInternalLembagaIds = activeInternalLembagaIds.filter(id => id !== targetLembaga.id);
+        } else if (targetLembaga && targetClassName !== 'Tanpa Kelas') {
           if (!activeInternalLembagaIds.includes(targetLembaga.id)) {
             activeInternalLembagaIds.push(targetLembaga.id);
           }

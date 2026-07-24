@@ -113,6 +113,8 @@ export default function App() {
   
   // Track newly added or modified santri to prevent initial load from overwriting them while async requests are pending
   const pendingOperations = React.useRef<Map<string, { data: Santri; timestamp: number }>>(new Map());
+  // Track recently deleted santri IDs to prevent realtime listeners from re-inserting them
+  const deletedSantriIds = React.useRef<Map<string, number>>(new Map());
  
   // On mount, load data once from Supabase and set up automatic WebSockets Supabase Realtime listener
   React.useEffect(() => {
@@ -163,19 +165,27 @@ export default function App() {
                 pendingOperations.current.delete(id);
               }
             }
+            // Clean up deleted items older than 60 seconds
+            for (const [id, time] of deletedSantriIds.current.entries()) {
+              if (now - time > 60000) {
+                deletedSantriIds.current.delete(id);
+              }
+            }
 
             // Map server's cleaned list, overriding any items with active pending updates
-            const updatedCleaned = cleaned.map(item => {
-              const pending = pendingOperations.current.get(item.id);
-              if (pending) {
-                return pending.data;
-              }
-              return item;
-            });
+            const updatedCleaned = cleaned
+              .filter(item => !deletedSantriIds.current.has(item.id))
+              .map(item => {
+                const pending = pendingOperations.current.get(item.id);
+                if (pending) {
+                  return pending.data;
+                }
+                return item;
+              });
 
             // Find pending items that are not yet in the cleaned list (such as brand new ones)
             const brandNewPending = Array.from(pendingOperations.current.values())
-              .filter((op: { data: Santri; timestamp: number }) => !cleaned.some(c => c.id === op.data.id))
+              .filter((op: { data: Santri; timestamp: number }) => !deletedSantriIds.current.has(op.data.id) && !cleaned.some(c => c.id === op.data.id))
               .map((op: { data: Santri; timestamp: number }) => op.data);
 
             return [...brandNewPending, ...updatedCleaned];
@@ -223,7 +233,9 @@ export default function App() {
             if (!isMounted) return;
             if (payload.eventType === 'INSERT') {
               const newRow = cleanSantri(snakeToCamel(payload.new));
+              if (deletedSantriIds.current.has(newRow.id)) return;
               setSantriList(prev => {
+                if (deletedSantriIds.current.has(newRow.id)) return prev;
                 if (prev.some(item => item.id === newRow.id)) {
                   return prev.map(item => item.id === newRow.id ? newRow : item);
                 }
@@ -231,11 +243,12 @@ export default function App() {
               });
             } else if (payload.eventType === 'UPDATE') {
               const updatedRow = cleanSantri(snakeToCamel(payload.new));
+              if (deletedSantriIds.current.has(updatedRow.id)) return;
               setSantriList(prev => prev.map(item => {
                 if (item.id !== updatedRow.id) return item;
                 // If there is an active pending operation for this item, keep local pending data
                 const pending = pendingOperations.current.get(item.id);
-                if (pending) {
+                if (pending && (Date.now() - pending.timestamp < 15000)) {
                   return pending.data;
                 }
                 // Safely merge non-undefined fields onto item
@@ -251,6 +264,7 @@ export default function App() {
               }));
             } else if (payload.eventType === 'DELETE') {
               const oldId = payload.old.id;
+              deletedSantriIds.current.set(oldId, Date.now());
               setSantriList(prev => prev.filter(item => item.id !== oldId));
             }
           })
@@ -437,22 +451,29 @@ export default function App() {
         }
       }
       mergedSaved.statusKeanggotaan = mergedSaved.statusKeanggotaan || processed.statusKeanggotaan || 'Aktif';
-      pendingOperations.current.delete(processed.id);
+      // Keep in pendingOperations with updated timestamp so incoming stale realtime events don't overwrite it immediately
+      pendingOperations.current.set(processed.id, { data: mergedSaved, timestamp: Date.now() });
       setSantriList((prev) => {
         const nextList = prev.map(s => s.id === processed.id ? mergedSaved : s);
         safeLocalStorageSetItem('smartsantri_santriList', JSON.stringify(nextList));
         return nextList;
       });
     } catch (dbErr: any) {
-      pendingOperations.current.delete(processed.id);
       console.warn("Update remote database failed, keeping local update:", dbErr);
     }
   };
 
   const handleDeleteSantri = async (id: string) => {
+    deletedSantriIds.current.set(id, Date.now());
+    pendingOperations.current.delete(id);
+
     const santriToDelete = santriList.find((s) => s.id === id);
     if (!santriToDelete) {
-      setSantriList((prev) => prev.filter((s) => s.id !== id));
+      setSantriList((prev) => {
+        const nextList = prev.filter((s) => s.id !== id);
+        safeLocalStorageSetItem('smartsantri_santriList', JSON.stringify(nextList));
+        return nextList;
+      });
       await deleteTableRow('santri', 'smartsantri_santriList', id);
       return;
     }
@@ -486,7 +507,11 @@ export default function App() {
     }
 
     // 3. Delete the Santri itself
-    setSantriList((prev) => prev.filter((s) => s.id !== id));
+    setSantriList((prev) => {
+      const nextList = prev.filter((s) => s.id !== id);
+      safeLocalStorageSetItem('smartsantri_santriList', JSON.stringify(nextList));
+      return nextList;
+    });
     await deleteTableRow('santri', 'smartsantri_santriList', id);
   };
 

@@ -1066,9 +1066,7 @@ export default function LembagaKelasSub({
           }
         } else {
           const isCalonPelajar = selectedKelas && isDefaultClass(selectedKelas);
-          const defaultClassObj = getClassesOfLembaga(selectedLembaga.id).find(isDefaultClass);
-          const targetClass = isCalonPelajar ? 'Tanpa Kelas' : (defaultClassObj?.nama || 'Calon Peserta Didik');
-          onUpdateSantriClass(student.id, targetClass, selectedLembaga.id);
+          onUpdateSantriClass(student.id, 'Tanpa Kelas', selectedLembaga.id);
           if (isCalonPelajar) {
             showToast(`${student.nama} berhasil dikeluarkan dari lembaga.`);
           } else {
@@ -1273,11 +1271,13 @@ export default function LembagaKelasSub({
           }
         } else {
           const isCalonPelajar = selectedKelas && isDefaultClass(selectedKelas);
-          const defaultClassObj = getClassesOfLembaga(selectedLembaga.id).find(isDefaultClass);
-          const targetClass = isCalonPelajar ? 'Tanpa Kelas' : (defaultClassObj?.nama || 'Calon Peserta Didik');
-          selectedStudentIds.forEach(id => {
-            onUpdateSantriClass(id, targetClass, selectedLembaga.id);
-          });
+          if (onUpdateSantriClassBatch) {
+            onUpdateSantriClassBatch(selectedStudentIds, 'Tanpa Kelas', selectedLembaga.id);
+          } else {
+            selectedStudentIds.forEach(id => {
+              onUpdateSantriClass(id, 'Tanpa Kelas', selectedLembaga.id);
+            });
+          }
           if (isCalonPelajar) {
             showToast(`${count} santri berhasil dikeluarkan dari lembaga.`);
           } else {

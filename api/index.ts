@@ -597,6 +597,21 @@ app.delete("/api/db/:table/:id", async (req, res) => {
   }
 
   try {
+    if (table === "santri") {
+      // Find santri first to get name for cascading
+      const { data: sData } = await client.from("santri").select("id, nama").eq("id", id).maybeSingle();
+      const santriNama = sData?.nama;
+
+      await client.from("rombel_assignment").delete().eq("santri_id", id);
+      if (santriNama) {
+        await client.from("perizinan").delete().or(`santri_id.eq.${id},nama_santri.eq.${santriNama}`);
+        await client.from("keamanan").delete().or(`santri_id.eq.${id},nama_santri.eq.${santriNama}`);
+        await client.from("bendahara").delete().eq("nama_santri", santriNama);
+      } else {
+        await client.from("perizinan").delete().eq("santri_id", id);
+        await client.from("keamanan").delete().eq("santri_id", id);
+      }
+    }
     const { data, error } = await client.from(table).delete().eq("id", id).select();
     if (error) throw error;
     res.json({ success: true, data: stripPassword(table, data?.[0] || null) });
