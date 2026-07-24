@@ -2,6 +2,10 @@
 -- SMART SANTRI SUPABASE SETUP & BLUEPRINT
 -- ==========================================
 -- Log Perubahan Database:
+-- [2026-07-24]
+-- * Penambahan/mempertahankan kolom 'pendidikan_formal' (TEXT) pada tabel 'santri' agar tersimpan langsung di Supabase.
+-- * Penyesuaian kolom 'id' pada tabel 'rombel_assignment' dari UUID ke TEXT agar fleksibel menerima string ID buatan aplikasi maupun UUID secara seamless.
+-- * Pembaruan fungsi trigger 'cascade_delete_santri_related_records' untuk menghapus data relasi berdasarkan santri_id dan mencakup rombel_assignment.
 -- [2026-07-15]
 -- * Penambahan kolom 'santri_id' (TEXT) dan 'nis' (VARCHAR(20)) pada tabel 'keamanan' dan 'perizinan' untuk mencegah bentrokan data bagi santri dengan nama yang sama.
 -- * Menghapus nama dummy untuk Ketua Yayasan ('Drs. H. M. Zainul Arifin') dan Wakil Pengasuh ('KH. Abul Huda, Lc.') pada tabel pesantren_profile (mengubah nilai default dan data awal menjadi kosong/empty string).
@@ -123,6 +127,7 @@ CREATE TABLE IF NOT EXISTS santri (
     file_pas_foto TEXT,
     nomor_lemari VARCHAR(30),
     pendidikan_terakhir VARCHAR(50) DEFAULT 'SD/MI',
+    pendidikan_formal TEXT,
     pendidikan_internal TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -143,8 +148,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='santri' AND column_name='status_verval') THEN
         ALTER TABLE santri ADD COLUMN status_verval VARCHAR(20) DEFAULT 'Belum';
     END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='santri' AND column_name='pendidikan_formal') THEN
-        ALTER TABLE santri DROP COLUMN pendidikan_formal CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='santri' AND column_name='pendidikan_formal') THEN
+        ALTER TABLE santri ADD COLUMN pendidikan_formal TEXT;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='santri' AND column_name='pendidikan_internal') THEN
         ALTER TABLE santri ADD COLUMN pendidikan_internal TEXT;
@@ -338,13 +343,23 @@ CREATE TABLE IF NOT EXISTS kelompok_rombel (
 
 -- 7. TABEL JUNCTION: ROMBEL ASSIGNMENT (Many-to-Many antara Santri dan Kelompok Rombel)
 CREATE TABLE IF NOT EXISTS rombel_assignment (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     santri_id TEXT REFERENCES santri(id) ON DELETE CASCADE,
     kategori_id TEXT REFERENCES kategori_rombel(id) ON DELETE CASCADE,
     kelompok_id TEXT REFERENCES kelompok_rombel(id) ON DELETE CASCADE,
     assigned_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     UNIQUE (santri_id, kategori_id) -- Menjamin santri hanya terdaftar di satu kelompok per kategori
 );
+
+-- Migrasi id rombel_assignment ke TEXT jika sebelumnya UUID
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='rombel_assignment' AND column_name='id' AND data_type='uuid') THEN
+        ALTER TABLE rombel_assignment ALTER COLUMN id TYPE TEXT USING id::text;
+        ALTER TABLE rombel_assignment ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+    END IF;
+END
+$$;
 
 -- 8. TABEL PELENGKAP LAIN (Surat, Bendahara, Keamanan)
 CREATE TABLE IF NOT EXISTS surat (
@@ -511,15 +526,18 @@ CREATE OR REPLACE FUNCTION cascade_delete_santri_related_records()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 1. Hapus dari keamanan (Riwayat Pelanggaran)
-    DELETE FROM keamanan WHERE nama_santri = OLD.nama;
+    DELETE FROM keamanan WHERE santri_id = OLD.id OR nama_santri = OLD.nama;
     
     -- 2. Hapus dari bendahara (Keuangan / Pembayaran Bulanan)
     DELETE FROM bendahara WHERE nama_santri = OLD.nama;
     
     -- 3. Hapus dari perizinan (Log Perizinan & Data Keluar Masuk)
-    DELETE FROM perizinan WHERE nama_santri = OLD.nama;
+    DELETE FROM perizinan WHERE santri_id = OLD.id OR nama_santri = OLD.nama;
+
+    -- 4. Hapus dari rombel_assignment (Assignment Rombongan Belajar)
+    DELETE FROM rombel_assignment WHERE santri_id = OLD.id;
     
-    -- 4. Kosongkan ketua_kamar jika santri yang dihapus adalah ketua kamar
+    -- 5. Kosongkan ketua_kamar jika santri yang dihapus adalah ketua kamar
     UPDATE kamar SET ketua_kamar = '' WHERE ketua_kamar = OLD.nama;
 
     RETURN OLD;

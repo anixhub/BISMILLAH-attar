@@ -176,6 +176,7 @@ const initialFormState = {
   statusKeanggotaan: 'Aktif' as 'Aktif' | 'Alumni' | 'Meninggal',
   statusDomisili: 'Muqim' as 'Muqim' | 'Kampung',
   statusEmis: 'Belum' as 'Terdaftar' | 'Belum',
+  statusVerval: 'Proses' as 'Sukses' | 'Proses',
   kelas: '',
   kamar: '',
   tanggalMasuk: '',
@@ -189,7 +190,9 @@ const initialFormState = {
   fileAkta: '',
   fileIjazah: '',
   filePasFoto: '',
-  pendidikanInternal: ''
+  pendidikanInternal: '',
+  pendidikanFormalLembagaId: '',
+  pendidikanFormalClassId: 'calon'
 };
 
 export default function SantriFormModal({
@@ -272,6 +275,54 @@ export default function SantriFormModal({
       return 'Internal';
     }
     return 'Formal';
+  };
+
+  const extractFormalData = (santri: Santri | null | undefined, lembagas: Lembaga[], kelas: Kelas[]) => {
+    if (!santri) return { formalLembagaId: '', formalClassId: 'calon' };
+    const formalLembagas = lembagas.filter(l => getLembagaJenis(l) === 'Formal');
+
+    if (santri.pendidikanFormal) {
+      const parts = santri.pendidikanFormal.split(' - ');
+      const lemName = parts[0]?.trim();
+      const clsName = parts[1]?.trim();
+
+      if (lemName) {
+        const matchLem = formalLembagas.find(l => 
+          l.nama.toLowerCase() === lemName.toLowerCase() ||
+          (l.kode && l.kode.toLowerCase() === lemName.toLowerCase())
+        );
+        if (matchLem) {
+          let matchClassId = 'calon';
+          if (clsName && clsName.toLowerCase() !== 'calon peserta didik' && clsName.toLowerCase() !== 'calon pelajar') {
+            const matchCls = kelas.find(k => 
+              getLemId(k) === String(matchLem.id) &&
+              k.nama.trim().toLowerCase() === clsName.toLowerCase()
+            );
+            if (matchCls) matchClassId = String(matchCls.id);
+          }
+          return { formalLembagaId: String(matchLem.id), formalClassId: matchClassId };
+        }
+      }
+    }
+
+    if (santri.kelas) {
+      const santriClasses = santri.kelas.split(',').map(x => x.trim()).filter(Boolean);
+      for (const cName of santriClasses) {
+        const matchCls = kelas.find(k => k.nama.trim().toLowerCase() === cName.toLowerCase());
+        if (matchCls) {
+          const lemId = getLemId(matchCls);
+          const matchLem = formalLembagas.find(l => String(l.id) === lemId);
+          if (matchLem) {
+            const matchClassId = (cName.toLowerCase() === 'calon peserta didik' || cName.toLowerCase() === 'calon pelajar')
+              ? 'calon'
+              : String(matchCls.id);
+            return { formalLembagaId: String(matchLem.id), formalClassId: matchClassId };
+          }
+        }
+      }
+    }
+
+    return { formalLembagaId: '', formalClassId: 'calon' };
   };
 
   const calculateAgeAsOfReference = (birthDateStr?: string, refDay?: number, refMonth?: number): number | null => {
@@ -618,6 +669,7 @@ export default function SantriFormModal({
           statusKeanggotaan: editingSantri.statusKeanggotaan || 'Aktif',
           statusDomisili: editingSantri.statusDomisili || 'Muqim',
           statusEmis: editingSantri.statusEmis || 'Belum',
+          statusVerval: editingSantri.statusVerval || 'Proses',
           kelas: editingSantri.kelas || '',
           kamar: editingSantri.kamar || '',
           tanggalMasuk: editingSantri.tanggalMasuk || '',
@@ -630,7 +682,9 @@ export default function SantriFormModal({
           fileAkta: editingSantri.fileAkta || '',
           fileIjazah: editingSantri.fileIjazah || '',
           filePasFoto: (editingSantri.filePasFoto && editingSantri.filePasFoto !== PUTRA_AVATAR && editingSantri.filePasFoto !== PUTRI_AVATAR) ? editingSantri.filePasFoto : '',
-          pendidikanInternal: editingSantri.pendidikanInternal || ''
+          pendidikanInternal: editingSantri.pendidikanInternal || '',
+          pendidikanFormalLembagaId: extractFormalData(editingSantri, lembagasList, kelasList).formalLembagaId,
+          pendidikanFormalClassId: extractFormalData(editingSantri, lembagasList, kelasList).formalClassId
         });
 
         const hasCustomPasFoto = editingSantri.filePasFoto && 
@@ -716,6 +770,19 @@ export default function SantriFormModal({
       }
     }
   }, [isOpen, editingSantri, form.tanggalMasuk, santriList, lastGeneratedNis]);
+
+  useEffect(() => {
+    if (editingSantri && lembagasList.length > 0) {
+      const { formalLembagaId, formalClassId } = extractFormalData(editingSantri, lembagasList, kelasList);
+      if (formalLembagaId) {
+        setForm(prev => ({
+          ...prev,
+          pendidikanFormalLembagaId: prev.pendidikanFormalLembagaId || formalLembagaId,
+          pendidikanFormalClassId: prev.pendidikanFormalLembagaId ? prev.pendidikanFormalClassId : formalClassId
+        }));
+      }
+    }
+  }, [editingSantri, lembagasList, kelasList]);
 
   const generateNisForCurrentForm = () => {
     if (!form.tanggalMasuk || form.tanggalMasuk.trim() === "") return;
@@ -986,9 +1053,42 @@ export default function SantriFormModal({
     // Keep NIS empty if left blank (will be stored as NULL in database)
     const generatedNis = form.nis.trim() || '';
 
-    // Calculate synchronized classes based on selected pendidikanInternal
+    // Calculate synchronized classes based on selected formal education & pendidikanInternal
     let finalClasses = form.kelas ? form.kelas.split(',').map(x => x.trim()).filter(Boolean) : [];
     finalClasses = finalClasses.filter(c => c.toLowerCase() !== 'tanpa kelas');
+
+    // Remove any classes that belong to formal institutions
+    const formalLembagaIds = lembagasList.filter(l => getLembagaJenis(l) === 'Formal').map(l => String(l.id));
+    finalClasses = finalClasses.filter(clsName => {
+      const cls = kelasList.find(k => k.nama.toLowerCase() === clsName.toLowerCase());
+      if (cls) {
+        if (formalLembagaIds.includes(getLemId(cls))) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    let formalStr: string | undefined = undefined;
+
+    if (form.pendidikanFormalLembagaId) {
+      const targetLembaga = lembagasList.find(l => String(l.id) === String(form.pendidikanFormalLembagaId));
+      if (targetLembaga) {
+        let targetClassName = 'Calon Peserta Didik';
+        if (form.statusEmis === 'Terdaftar' && form.pendidikanFormalClassId && form.pendidikanFormalClassId !== 'calon') {
+          const targetClass = kelasList.find(k => 
+            String(k.id) === String(form.pendidikanFormalClassId) || 
+            k.nama.toLowerCase() === form.pendidikanFormalClassId.toLowerCase()
+          );
+          if (targetClass) {
+            targetClassName = targetClass.nama;
+          }
+        }
+        
+        finalClasses.push(targetClassName);
+        formalStr = `${targetLembaga.nama} - ${targetClassName}`;
+      }
+    }
 
     const internalLembagaIds = form.pendidikanInternal 
       ? form.pendidikanInternal.split(',').map(x => String(x.trim())).filter(Boolean) 
@@ -1086,6 +1186,7 @@ export default function SantriFormModal({
       statusKeanggotaan: form.statusKeanggotaan,
       statusDomisili: form.statusKeanggotaan === 'Aktif' ? form.statusDomisili : undefined,
       statusEmis: form.statusEmis || 'Belum',
+      statusVerval: form.statusEmis === 'Terdaftar' ? (form.statusVerval || 'Proses') : 'Proses',
       tanggalKeluar: (form.statusKeanggotaan === 'Alumni' || form.statusKeanggotaan === 'Meninggal') ? (form.tanggalKeluar || undefined) : undefined,
       catatan: form.catatan || undefined,
       pendidikanTerakhir: form.pendidikanTerakhir,
@@ -1095,7 +1196,8 @@ export default function SantriFormModal({
       fileAkta: form.fileAkta || undefined,
       fileIjazah: form.fileIjazah || undefined,
       filePasFoto: form.filePasFoto || '',
-      pendidikanInternal: form.pendidikanInternal || undefined
+      pendidikanInternal: form.pendidikanInternal || undefined,
+      pendidikanFormal: formalStr
     };
 
     if (editingSantri) {
@@ -1850,58 +1952,161 @@ export default function SantriFormModal({
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
                         <div>
                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Status Emis</label>
                           <select
                             value={form.statusEmis || 'Belum'}
-                            onChange={(e) => setForm({ ...form, statusEmis: e.target.value as any })}
+                            onChange={(e) => {
+                              const val = e.target.value as any;
+                              setForm(prev => ({
+                                ...prev,
+                                statusEmis: val,
+                                ...(val === 'Belum' ? { pendidikanFormalClassId: 'calon', statusVerval: 'Proses' } : {})
+                              }));
+                            }}
                             className="w-full rounded-xl border border-slate-200 bg-white p-3.5 text-sm focus:border-emerald-500 outline-none"
                           >
                             <option value="Terdaftar">Terdaftar</option>
                             <option value="Belum">Belum</option>
                           </select>
                         </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Status Verval</label>
+                          <select
+                            value={form.statusEmis === 'Terdaftar' ? (form.statusVerval || 'Proses') : 'Proses'}
+                            disabled={form.statusEmis !== 'Terdaftar'}
+                            onChange={(e) => {
+                              const val = e.target.value as any;
+                              setForm(prev => ({ ...prev, statusVerval: val }));
+                            }}
+                            className={`w-full rounded-xl border p-3.5 text-sm outline-none transition-colors ${
+                              form.statusEmis !== 'Terdaftar' 
+                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' 
+                                : 'bg-white border-slate-200 focus:border-emerald-500'
+                            }`}
+                          >
+                            <option value="Proses">Proses</option>
+                            <option value="Sukses">Sukses</option>
+                          </select>
+                        </div>
                       </div>
 
-                      {/* Pendidikan Internal Pondok yang Diikuti */}
-                      <div className="border-t border-slate-100 pt-4 mt-2 space-y-4">
-                        <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Lembaga Pendidikan Internal yang Diikuti</h4>
+                      {/* Segmen Aktivitas Akademik */}
+                      <div className="border-t border-slate-200/80 pt-5 mt-4 space-y-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="h-4 w-1 bg-emerald-600 rounded-full"></div>
+                          <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Aktivitas Akademik</h3>
+                        </div>
 
-                        {/* Pendidikan Internal: Boleh lebih dari 1 */}
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Pendidikan Internal Pondok (Bisa Lebih Dari 1)</label>
-                            <div className="space-y-2 max-h-36 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50/50">
-                              {lembagasList.filter(l => getLembagaJenis(l) === 'Internal' && (form.gender ? (!l.gender || l.gender === form.gender || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua') : true)).length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">Belum ada lembaga internal terdaftar.</p>
-                              ) : (
-                                lembagasList
-                                  .filter(l => getLembagaJenis(l) === 'Internal' && (form.gender ? (!l.gender || l.gender === form.gender || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua') : true))
-                                  .map(l => {
-                                    const selectedIds = form.pendidikanInternal ? form.pendidikanInternal.split(',').map(x => x.trim()).filter(Boolean) : [];
-                                    const isChecked = selectedIds.includes(l.id);
-                                    return (
-                                      <label key={l.id} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={(e) => {
-                                            let nextIds = [...selectedIds];
-                                            if (e.target.checked) {
-                                              if (!nextIds.includes(l.id)) nextIds.push(l.id);
-                                            } else {
-                                              nextIds = nextIds.filter(id => id !== l.id);
-                                            }
-                                            setForm(prev => ({ ...prev, pendidikanInternal: nextIds.join(',') }));
-                                          }}
-                                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                        />
-                                        <span>{l.nama} ({l.kode})</span>
-                                      </label>
-                                    );
-                                  })
-                              )}
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pendidikan Formal</label>
+                          <select
+                            value={form.pendidikanFormalLembagaId || ''}
+                            onChange={(e) => {
+                              const lemId = e.target.value;
+                              setForm(prev => ({
+                                ...prev,
+                                pendidikanFormalLembagaId: lemId,
+                                pendidikanFormalClassId: 'calon'
+                              }));
+                            }}
+                            className="w-full rounded-xl border border-slate-200 bg-white p-3.5 text-sm focus:border-emerald-500 outline-none"
+                          >
+                            <option value="">Tidak Ada / Pilih Lembaga Formal...</option>
+                            {lembagasList
+                              .filter(l => getLembagaJenis(l) === 'Formal' && (form.gender ? (!l.gender || l.gender === form.gender || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua') : true))
+                              .map(l => (
+                                <option key={l.id} value={l.id}>
+                                  {l.nama}
+                                </option>
+                              ))
+                            }
+                          </select>
+                        </div>
+
+                        {/* Kotak Pilih Kelas Formal (Muncul saat Lembaga Formal dipilih) */}
+                        {form.pendidikanFormalLembagaId && (
+                          <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="block text-xs font-bold text-slate-700 uppercase">
+                                Pilih Kelas ({lembagasList.find(l => String(l.id) === String(form.pendidikanFormalLembagaId))?.nama || 'Formal'})
+                              </label>
                             </div>
+
+                            <select
+                              value={form.statusEmis === 'Terdaftar' ? (form.pendidikanFormalClassId || 'calon') : 'calon'}
+                              onChange={(e) => {
+                                if (form.statusEmis !== 'Terdaftar') {
+                                  setForm(prev => ({ ...prev, pendidikanFormalClassId: 'calon' }));
+                                  return;
+                                }
+                                setForm(prev => ({ ...prev, pendidikanFormalClassId: e.target.value }));
+                              }}
+                              className="w-full rounded-xl border border-slate-200 bg-white p-3.5 text-sm focus:border-emerald-500 outline-none cursor-pointer"
+                            >
+                              <option value="calon">Calon Peserta Didik</option>
+                              {kelasList
+                                .filter(k => 
+                                  getLemId(k) === String(form.pendidikanFormalLembagaId) &&
+                                  k.nama.trim().toLowerCase() !== 'calon peserta didik' &&
+                                  k.nama.trim().toLowerCase() !== 'calon pelajar'
+                                )
+                                .map(k => (
+                                  <option 
+                                    key={k.id} 
+                                    value={k.id}
+                                    disabled={form.statusEmis !== 'Terdaftar'}
+                                  >
+                                    {k.nama} {form.statusEmis !== 'Terdaftar' ? '(Perlu EMIS Terdaftar)' : ''}
+                                  </option>
+                                ))
+                              }
+                            </select>
+
+                            {form.statusEmis !== 'Terdaftar' && (
+                              <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200/60 text-xs font-medium">
+                                <span>⚠️</span>
+                                <span>Status EMIS belum Terdaftar. Hanya kelas <strong>Calon Peserta Didik</strong> yang dapat dipilih.</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Pendidikan Internal Pondok yang Diikuti */}
+                        <div className="pt-2 space-y-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase">Pendidikan Internal Pondok (Bisa Lebih Dari 1)</label>
+                          <div className="space-y-2 max-h-36 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50/50">
+                            {lembagasList.filter(l => getLembagaJenis(l) === 'Internal' && (form.gender ? (!l.gender || l.gender === form.gender || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua') : true)).length === 0 ? (
+                              <p className="text-xs text-slate-400 italic">Belum ada lembaga internal terdaftar.</p>
+                            ) : (
+                              lembagasList
+                                .filter(l => getLembagaJenis(l) === 'Internal' && (form.gender ? (!l.gender || l.gender === form.gender || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua') : true))
+                                .map(l => {
+                                  const selectedIds = form.pendidikanInternal ? form.pendidikanInternal.split(',').map(x => x.trim()).filter(Boolean) : [];
+                                  const isChecked = selectedIds.includes(l.id);
+                                  return (
+                                    <label key={l.id} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          let nextIds = [...selectedIds];
+                                          if (e.target.checked) {
+                                            if (!nextIds.includes(l.id)) nextIds.push(l.id);
+                                          } else {
+                                            nextIds = nextIds.filter(id => id !== l.id);
+                                          }
+                                          setForm(prev => ({ ...prev, pendidikanInternal: nextIds.join(',') }));
+                                        }}
+                                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                      />
+                                      <span>{l.nama}</span>
+                                    </label>
+                                  );
+                                })
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1951,6 +2156,7 @@ export default function SantriFormModal({
                       </div>
                     </div>
                   </div>
+                </div>
                 )}
 
                 {/* STEP 5: DOKUMEN PENDUKUNG */}

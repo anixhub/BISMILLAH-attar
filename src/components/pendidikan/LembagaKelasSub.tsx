@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronsUpDown, Printer
 } from 'lucide-react';
 import { Lembaga, Kelas, Santri, KategoriRombel, KelompokRombel, RombelAssignment, isDefaultClass, isEmisTerdaftar, getClsLembagaId, isGenderMatch } from '../../types';
+import { demoteSantriToCalonPesertaDidik } from '../../lib/utils';
 import SantriDetailModal from '../sekretaris/SantriDetailModal';
 import { PUTRA_AVATAR, PUTRI_AVATAR, renderSantriAvatar, calculateRealtimeAge, getPesantrenProfile } from '../SekretarisHelper';
 
@@ -2515,10 +2516,14 @@ export default function LembagaKelasSub({
                                                         e.stopPropagation();
                                                         const valToApply = pendingEmis[s.id] || currentEmis;
                                                         if (valToApply !== currentEmis && onUpdateSantri) {
-                                                          onUpdateSantri({
+                                                          let updated: Santri = {
                                                             ...s,
                                                             statusEmis: valToApply as any
-                                                          });
+                                                          };
+                                                          if (valToApply === 'Belum') {
+                                                            updated = demoteSantriToCalonPesertaDidik(s, lembagasList, kelasList);
+                                                          }
+                                                          onUpdateSantri(updated);
                                                         }
                                                         setActiveEmisDropdownId(null);
                                                         setPendingEmis(prev => {
@@ -3057,7 +3062,7 @@ export default function LembagaKelasSub({
                     >
                       {eligibleLembagas.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.nama} {l.kode ? `(${l.kode})` : ''}
+                          {l.nama}
                         </option>
                       ))}
                     </select>
@@ -3174,7 +3179,7 @@ export default function LembagaKelasSub({
                     >
                       {eligibleBulkLembagas.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.nama} {l.kode ? `(${l.kode})` : ''}
+                          {l.nama}
                         </option>
                       ))}
                     </select>

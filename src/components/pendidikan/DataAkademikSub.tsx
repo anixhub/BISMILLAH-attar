@@ -1279,7 +1279,7 @@ export default function DataAkademikSub({
                             {selectedLembagaFilter === 'semua'
                               ? 'Semua Lembaga'
                               : lembagasList.find(l => l.id === selectedLembagaFilter)
-                              ? `${lembagasList.find(l => l.id === selectedLembagaFilter)?.nama} (${lembagasList.find(l => l.id === selectedLembagaFilter)?.kode})`
+                              ? `${lembagasList.find(l => l.id === selectedLembagaFilter)?.nama}`
                               : selectedLembagaFilter}
                           </span>
                           <ChevronDown className="h-4 w-4 opacity-60 shrink-0" />
@@ -1334,7 +1334,7 @@ export default function DataAkademikSub({
                                               : 'hover:bg-slate-50 text-slate-600'
                                           }`}
                                         >
-                                          <span>{lem.nama} ({lem.kode})</span>
+                                          <span>{lem.nama}</span>
                                           {isActive && <Check className="h-3.5 w-3.5 text-indigo-700 shrink-0" />}
                                         </button>
                                       );
@@ -2404,7 +2404,7 @@ export default function DataAkademikSub({
                     >
                       {eligibleLembagas.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.nama} {l.kode ? `(${l.kode})` : ''}
+                          {l.nama}
                         </option>
                       ))}
                     </select>

@@ -313,6 +313,44 @@ app.post("/api/sync-role-permissions", async (req, res) => {
   }
 });
 
+// Helper to pack pendidikan_formal into catatan if column is missing
+function packPendidikanFormal(payload: any): any {
+  if (!payload || typeof payload !== "object") return payload;
+  if (Array.isArray(payload)) return payload.map(packPendidikanFormal);
+  const copy = { ...payload };
+  if (copy.pendidikan_formal !== undefined || copy.pendidikanFormal !== undefined) {
+    const pfVal = String(copy.pendidikan_formal || copy.pendidikanFormal || "").trim();
+    if (pfVal) {
+      let existingNotes = (copy.catatan || "").replace(/\[PF:.*?\]\s*/g, "").trim();
+      copy.catatan = `[PF:${pfVal}] ${existingNotes}`.trim();
+    } else {
+      // Clear PF tag if empty
+      if (copy.catatan) {
+        copy.catatan = copy.catatan.replace(/\[PF:.*?\]\s*/g, "").trim() || null;
+      }
+    }
+  }
+  return copy;
+}
+
+// Helper to unpack pendidikan_formal from catatan when reading from database
+function unpackPendidikanFormal(data: any): any {
+  if (!data) return data;
+  if (Array.isArray(data)) return data.map(unpackPendidikanFormal);
+  if (typeof data === "object") {
+    const copy = { ...data };
+    if (copy.catatan && typeof copy.catatan === "string" && copy.catatan.includes("[PF:")) {
+      const match = copy.catatan.match(/\[PF:(.*?)\]/);
+      if (match) {
+        copy.pendidikan_formal = copy.pendidikan_formal || match[1];
+        copy.catatan = copy.catatan.replace(/\[PF:.*?\]\s*/g, "").trim() || null;
+      }
+    }
+    return copy;
+  }
+  return data;
+}
+
 app.get("/api/db/:table", async (req, res) => {
   const { table } = req.params;
   const client = getSupabase();
@@ -347,7 +385,12 @@ app.get("/api/db/:table", async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: stripPassword(table, allData) });
+    let finalData = stripPassword(table, allData);
+    if (table === "santri") {
+      finalData = unpackPendidikanFormal(finalData);
+    }
+
+    res.json({ success: true, data: finalData });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -469,12 +512,25 @@ app.post("/api/db/:table", async (req, res) => {
   }
 
   try {
-    const sanitizedBody = sanitizePayload(req.body);
+    let sanitizedBody = sanitizePayload(req.body);
     if (table === "kelas") {
       delete sanitizedBody.tingkatan;
       delete sanitizedBody.kapasitas;
       delete sanitizedBody.tingkatan_kelas;
       delete sanitizedBody.kapasitas_kelas;
+    } else if (table === "santri") {
+      sanitizedBody = packPendidikanFormal(sanitizedBody);
+    } else if (table === "rombel_assignment") {
+      const isUuid = (val: any) => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      if (Array.isArray(sanitizedBody)) {
+        sanitizedBody = sanitizedBody.map((item: any) => {
+          const copy = { ...item };
+          if (copy.id && !isUuid(copy.id)) delete copy.id;
+          return copy;
+        });
+      } else if (sanitizedBody && !isUuid(sanitizedBody.id)) {
+        delete sanitizedBody.id;
+      }
     }
     const isArray = Array.isArray(sanitizedBody);
     const { data, error } = await performInsertWithRetry(client, table, sanitizedBody);
@@ -483,7 +539,12 @@ app.post("/api/db/:table", async (req, res) => {
       throw error;
     }
 
-    res.json({ success: true, data: stripPassword(table, isArray ? (data || []) : (data?.[0] || null)) });
+    let resultData = stripPassword(table, isArray ? (data || []) : (data?.[0] || null));
+    if (table === "santri") {
+      resultData = unpackPendidikanFormal(resultData);
+    }
+
+    res.json({ success: true, data: resultData });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -497,12 +558,19 @@ app.put("/api/db/:table/:id", async (req, res) => {
   }
 
   try {
-    const sanitizedBody = sanitizePayload(req.body);
+    let sanitizedBody = sanitizePayload(req.body);
     if (table === "kelas") {
       delete sanitizedBody.tingkatan;
       delete sanitizedBody.kapasitas;
       delete sanitizedBody.tingkatan_kelas;
       delete sanitizedBody.kapasitas_kelas;
+    } else if (table === "santri") {
+      sanitizedBody = packPendidikanFormal(sanitizedBody);
+    } else if (table === "rombel_assignment") {
+      const isUuid = (val: any) => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      if (sanitizedBody && !isUuid(sanitizedBody.id)) {
+        delete sanitizedBody.id;
+      }
     }
     const { data, error } = await performUpdateWithRetry(client, table, id, sanitizedBody);
     
@@ -510,7 +578,12 @@ app.put("/api/db/:table/:id", async (req, res) => {
       throw error;
     }
 
-    res.json({ success: true, data: stripPassword(table, data?.[0] || null) });
+    let resultData = stripPassword(table, data?.[0] || null);
+    if (table === "santri") {
+      resultData = unpackPendidikanFormal(resultData);
+    }
+
+    res.json({ success: true, data: resultData });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

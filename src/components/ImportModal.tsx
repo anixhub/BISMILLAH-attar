@@ -158,6 +158,7 @@ const REPLACE_FIELDS = [
   { value: 'tanggalMasuk', label: 'Tanggal Masuk' },
   { value: 'tanggalKeluar', label: 'Tanggal Keluar' },
   { value: 'statusEmis', label: 'Status Emis' },
+  { value: 'statusVerval', label: 'Status Verval' },
   { value: 'catatan', label: 'Catatan' },
 ];
 
@@ -595,7 +596,7 @@ export function ImportModal({
       'Pendidikan Terakhir', 'Anak Ke', 'Jumlah Saudara', 'Nama Ayah', 'NIK Ayah', 'Pekerjaan Ayah', 'Pendidikan Ayah',
       'Nama Ibu', 'NIK Ibu', 'Pekerjaan Ibu', 'Pendidikan Ibu', 'Alamat', 'RT', 'RW', 'Desa',
       'Kecamatan', 'Kabupaten', 'Provinsi', 'Jarak Rumah (km)', 'No HP Wali', 'Status Keanggotaan',
-      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Catatan'
+      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Status Verval', 'Catatan'
     ];
     
     const rows = [
@@ -604,21 +605,21 @@ export function ImportModal({
         'SD/MI', '1', '2', 'Slamet', '3517011203050010', 'Wiraswasta', 'SLTA',
         'Siti', '3517011203050011', 'Ibu Rumah Tangga', 'SLTA', 'Jl. Raya Pesantren No. 12', '03', '01', 'Cukir',
         'Diwek', 'Jombang', 'Jawa Timur', '15', '081234567890', 'Aktif',
-        'Muqim', '01-07-2024', '', 'Terdaftar', 'Santri baru berprestasi'
+        'Muqim', '01-07-2024', '', 'Terdaftar', 'Sukses', 'Santri baru berprestasi'
       ],
       [
         '12346', 'Fathimah Az-Zahra', '0091234568', '121235170002000002', '3517011203050003', '3517012508120036', 'Kediri', '21-09-2011', 'Putri',
         'SMP/MTs', '2', '1', 'Umar', '3517011203050020', 'PNS', 'S1',
         'Aisyah', '3517011203050021', 'Guru', 'S1', 'Jl. Pemuda No. 45', '01', '04', 'Pare',
         'Pare', 'Kediri', 'Jawa Timur', '45', '081298765432', 'Aktif',
-        'Muqim', '01-07-2024', '', 'Terdaftar', 'Pernah juara pidato'
+        'Muqim', '01-07-2024', '', 'Terdaftar', 'Proses', 'Pernah juara pidato'
       ],
       [
         '12347', 'Muhammad Akhyar', '0091234569', '121235170003000003', '3517011203050004', '3517012508120037', 'Gresik', '12-04-2010', 'Putra',
         'SD/MI', '1', '2', 'Yusuf', '3517011203050030', 'Petani', 'SD',
         'Aminah', '3517011203050031', 'Ibu Rumah Tangga', 'SLTP', 'Jl. Wahid Hasyim No. 8', '02', '02', 'Manyar',
         'Manyar', 'Gresik', 'Jawa Timur', '60', '081345678901', 'Aktif',
-        'Muqim', '01-07-2024', '', 'Belum', ''
+        'Muqim', '01-07-2024', '', 'Belum', 'Proses', ''
       ]
     ];
 
@@ -680,6 +681,7 @@ export function ImportModal({
           const idxStatusDomisili = headers.indexOf('Status Domisili');
           const idxStatusHidup = headers.indexOf('Status Hidup');
           const idxStatusEmis = headers.indexOf('Status Emis');
+          const idxStatusVerval = headers.indexOf('Status Verval');
           const idxKelas = headers.indexOf('Kelas');
           const idxKamar = headers.indexOf('Kamar');
           const idxTanggalMasuk = headers.indexOf('Tanggal Masuk');
@@ -776,7 +778,13 @@ export function ImportModal({
               rawStatusEmis
             ) as any;
 
-            // statusVerval removed
+            const rawStatusVerval = getVal(idxStatusVerval).trim();
+            const svL = rawStatusVerval.toLowerCase();
+            const statusVerval = (
+              svL === 'sukses' ? 'Sukses' :
+              svL === 'proses' ? 'Proses' :
+              'Proses'
+            ) as any;
 
             const kelas = getVal(idxKelas) || 'Tanpa Kelas';
             const kamar = getVal(idxKamar) || 'Tanpa Kamar';
@@ -822,6 +830,7 @@ export function ImportModal({
               statusKeanggotaan,
               statusDomisili,
               statusEmis,
+              statusVerval,
               tanggalKeluar,
               catatan,
               fileKk: undefined,
@@ -1168,7 +1177,10 @@ export function ImportModal({
         criticalErrors.statusEmis = "Status Emis harus 'Terdaftar' atau 'Belum'";
       }
 
-      // statusVerval validation removed
+      const svLower = (row.statusVerval || "").trim().toLowerCase();
+      if (svLower && svLower !== "sukses" && svLower !== "proses") {
+        criticalErrors.statusVerval = "Status Verval harus 'Sukses' atau 'Proses'";
+      }
 
       const warnings: Record<string, string> = {};
 
@@ -1241,7 +1253,8 @@ export function ImportModal({
       { id: 'anakKe_invalid', label: 'Urutan Anak Ke Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.anakKe },
       { id: 'statusKeanggotaan_invalid', label: 'Status Keanggotaan Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.statusKeanggotaan },
       { id: 'statusDomisili_invalid', label: 'Status Domisili Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.statusDomisili },
-      { id: 'statusEmis_invalid', label: 'Status Emis Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.statusEmis }
+      { id: 'statusEmis_invalid', label: 'Status Emis Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.statusEmis },
+      { id: 'statusVerval_invalid', label: 'Status Verval Tidak Valid', matcher: (errors: Record<string, string>) => !!errors.statusVerval }
     ];
 
     // Count occurrences for each category from the invalid rows
@@ -1368,7 +1381,7 @@ export function ImportModal({
       'Pendidikan Terakhir', 'Anak Ke', 'Jumlah Saudara', 'Nama Ayah', 'NIK Ayah', 'Pekerjaan Ayah', 'Pendidikan Ayah',
       'Nama Ibu', 'NIK Ibu', 'Pekerjaan Ibu', 'Pendidikan Ibu', 'Alamat', 'RT', 'RW', 'Desa',
       'Kecamatan', 'Kabupaten', 'Provinsi', 'Jarak Rumah (km)', 'No HP Wali', 'Status Keanggotaan',
-      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Catatan', 'Keterangan Masalah'
+      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Status Verval', 'Catatan', 'Keterangan Masalah'
     ];
 
     const fieldsToExport: (keyof Santri)[] = [
@@ -1376,7 +1389,7 @@ export function ImportModal({
       'pendidikanTerakhir', 'anakKe', 'dariBersaudara', 'namaAyah', 'nikAyah', 'pekerjaanAyah', 'pendidikanAyah',
       'namaIbu', 'nikIbu', 'pekerjaanIbu', 'pendidikanIbu', 'alamat', 'rt', 'rw', 'desa',
       'kecamatan', 'kabupaten', 'provinsi', 'jarakRumah', 'noHp', 'statusKeanggotaan',
-      'statusDomisili', 'tanggalMasuk', 'tanggalKeluar', 'statusEmis', 'catatan'
+      'statusDomisili', 'tanggalMasuk', 'tanggalKeluar', 'statusEmis', 'statusVerval', 'catatan'
     ];
 
     const invalidRowsToExport = importedSantri
@@ -1441,7 +1454,7 @@ export function ImportModal({
       'Pendidikan Terakhir', 'Anak Ke', 'Jumlah Saudara', 'Nama Ayah', 'NIK Ayah', 'Pekerjaan Ayah', 'Pendidikan Ayah',
       'Nama Ibu', 'NIK Ibu', 'Pekerjaan Ibu', 'Pendidikan Ibu', 'Alamat', 'RT', 'RW', 'Desa',
       'Kecamatan', 'Kabupaten', 'Provinsi', 'Jarak Rumah (km)', 'No HP Wali', 'Status Keanggotaan',
-      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Catatan'
+      'Status Domisili', 'Tanggal Masuk', 'Tanggal Keluar', 'Status Emis', 'Status Verval', 'Catatan'
     ];
 
     const fieldsToExport: (keyof Santri)[] = [
@@ -1449,7 +1462,7 @@ export function ImportModal({
       'pendidikanTerakhir', 'anakKe', 'dariBersaudara', 'namaAyah', 'nikAyah', 'pekerjaanAyah', 'pendidikanAyah',
       'namaIbu', 'nikIbu', 'pekerjaanIbu', 'pendidikanIbu', 'alamat', 'rt', 'rw', 'desa',
       'kecamatan', 'kabupaten', 'provinsi', 'jarakRumah', 'noHp', 'statusKeanggotaan',
-      'statusDomisili', 'tanggalMasuk', 'tanggalKeluar', 'statusEmis', 'catatan'
+      'statusDomisili', 'tanggalMasuk', 'tanggalKeluar', 'statusEmis', 'statusVerval', 'catatan'
     ];
 
     const formatExcelDate = (dStr: string) => {
@@ -2246,6 +2259,7 @@ export function ImportModal({
                         <th className="p-2.5 border-b border-r border-slate-200 w-[130px] sticky top-[24px] bg-slate-50 z-20 select-none">Tanggal Masuk</th>
                         <th className="p-2.5 border-b border-r border-slate-200 w-[130px] sticky top-[24px] bg-slate-50 z-20 select-none">Tanggal Keluar</th>
                         <th className="p-2.5 border-b border-r border-slate-200 w-[150px] sticky top-[24px] bg-slate-50 z-20 select-none">Status Emis</th>
+                        <th className="p-2.5 border-b border-r border-slate-200 w-[150px] sticky top-[24px] bg-slate-50 z-20 select-none">Status Verval</th>
 
                         <th className="p-2.5 border-b border-slate-200 w-[200px] sticky top-[24px] bg-slate-50 z-20 select-none">Catatan</th>
                       </tr>
@@ -2413,6 +2427,7 @@ export function ImportModal({
                             {renderImportCell('tanggalMasuk', 'Tanggal Masuk')}
                             {renderImportCell('tanggalKeluar', 'Tanggal Keluar')}
                             {renderImportCell('statusEmis', 'Status Emis')}
+                            {renderImportCell('statusVerval', 'Status Verval')}
                             {renderImportCell('catatan', 'Catatan')}
                           </tr>
                         );

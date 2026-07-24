@@ -13,7 +13,9 @@ import {
   MapPin,
   ChevronsUpDown
 } from 'lucide-react';
-import { Santri } from '../../../types';
+import { Santri, Lembaga, Kelas } from '../../../types';
+import { demoteSantriToCalonPesertaDidik } from '../../../lib/utils';
+import { fetchTableData } from '../../../lib/api';
 import { renderSantriAvatar, isCustomPasFoto } from '../../SekretarisHelper';
 import { MembershipBadge } from '../components/HelperComponents';
 import { AgeFilterConfig, calculateAgeOnDate } from '../AgeFilterModal';
@@ -34,6 +36,8 @@ interface SantriCardViewProps {
   canWritePutri: boolean;
   ageFilterConfig?: AgeFilterConfig;
   onUpdateSantri?: (s: Santri) => void;
+  lembagasList?: Lembaga[];
+  kelasList?: Kelas[];
 }
 
 export default function SantriCardView({
@@ -51,8 +55,35 @@ export default function SantriCardView({
   canWritePutra,
   canWritePutri,
   ageFilterConfig,
-  onUpdateSantri
+  onUpdateSantri,
+  lembagasList,
+  kelasList
 }: SantriCardViewProps) {
+  const [internalLembagas, setInternalLembagas] = React.useState<Lembaga[]>(lembagasList || []);
+  const [internalKelas, setInternalKelas] = React.useState<Kelas[]>(kelasList || []);
+
+  React.useEffect(() => {
+    if (lembagasList) setInternalLembagas(lembagasList);
+    if (kelasList) setInternalKelas(kelasList);
+  }, [lembagasList, kelasList]);
+
+  React.useEffect(() => {
+    if ((!lembagasList || lembagasList.length === 0) || (!kelasList || kelasList.length === 0)) {
+      const loadEdu = async () => {
+        try {
+          const lems = await fetchTableData<Lembaga>('lembaga', 'smartsantri_lembagas', []);
+          const kls = await fetchTableData<Kelas>('kelas', 'smartsantri_kelas', []);
+          if (lems && lems.length > 0) setInternalLembagas(lems);
+          if (kls && kls.length > 0) setInternalKelas(kls);
+        } catch {}
+      };
+      loadEdu();
+    }
+  }, []);
+
+  const activeLembagas = lembagasList || internalLembagas;
+  const activeKelas = kelasList || internalKelas;
+
   const [activeEmisDropdownId, setActiveEmisDropdownId] = React.useState<string | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = React.useState<number | null>(null);
   const [lastAction, setLastAction] = React.useState<'select' | 'deselect' | null>(null);
@@ -526,21 +557,13 @@ export default function SantriCardView({
                                     setActiveEmisDropdownId(null);
                                     if (isCurrent) return;
 
-                                    const updated: Santri = {
+                                    let updated: Santri = {
                                       ...s,
                                       statusEmis: emisOption
                                     };
 
                                     if (emisOption === 'Belum') {
-                                      const currentKelas = s.kelas ? s.kelas.trim() : '';
-                                      const isAlreadyCalon = !currentKelas || 
-                                        currentKelas.toLowerCase() === 'tanpa kelas' || 
-                                        currentKelas.toLowerCase().includes('calon peserta didik') || 
-                                        currentKelas.toLowerCase().includes('calon pelajar');
-
-                                      if (!isAlreadyCalon) {
-                                        updated.kelas = 'Calon Peserta Didik';
-                                      }
+                                      updated = demoteSantriToCalonPesertaDidik(s, activeLembagas, activeKelas);
                                     }
 
                                     onUpdateSantri?.(updated);

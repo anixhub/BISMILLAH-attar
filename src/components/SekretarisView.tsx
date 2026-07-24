@@ -138,6 +138,7 @@ export default function SekretarisView({
     statusDomisili: false,
     tanggalMasuk: false,
     tanggalKeluar: false,
+    statusVerval: false,
     catatan: false,
   });
 
@@ -445,6 +446,7 @@ export default function SekretarisView({
       { id: 'statusKeanggotaan', label: 'Status Keanggotaan', isAlwaysVisible: false, colKey: 'statusKeanggotaan', getValue: (s: Santri) => s.statusKeanggotaan || '' },
       { id: 'tanggalMasuk', label: 'Tanggal Masuk', isAlwaysVisible: false, colKey: 'tanggalMasuk', getValue: (s: Santri) => s.tanggalMasuk || '' },
       { id: 'tanggalKeluar', label: 'Tanggal Keluar', isAlwaysVisible: false, colKey: 'tanggalKeluar', getValue: (s: Santri) => s.tanggalKeluar || '' },
+      { id: 'statusVerval', label: 'Status Verval', isAlwaysVisible: false, colKey: 'statusVerval', getValue: (s: Santri) => s.statusVerval || 'Proses' },
       { id: 'catatan', label: 'Catatan', isAlwaysVisible: true, getValue: (s: Santri) => s.catatan || '' }
     ];
 
@@ -916,6 +918,7 @@ export default function SekretarisView({
       { id: 'statusKeanggotaan', label: 'Status Keanggotaan', isAlwaysVisible: false, colKey: 'statusKeanggotaan', getValue: (s: Santri) => s.statusKeanggotaan || '' },
       { id: 'tanggalMasuk', label: 'Tanggal Masuk', isAlwaysVisible: false, colKey: 'tanggalMasuk', getValue: (s: Santri) => s.tanggalMasuk || '' },
       { id: 'tanggalKeluar', label: 'Tanggal Keluar', isAlwaysVisible: false, colKey: 'tanggalKeluar', getValue: (s: Santri) => s.tanggalKeluar || '' },
+      { id: 'statusVerval', label: 'Status Verval', isAlwaysVisible: false, colKey: 'statusVerval', getValue: (s: Santri) => s.statusVerval || 'Proses' },
       { id: 'catatan', label: 'Catatan', isAlwaysVisible: true, getValue: (s: Santri) => s.catatan || '' }
     ];
 
@@ -1682,6 +1685,7 @@ export default function SekretarisView({
                               statusDomisili: 'Status Domisili',
                               tanggalMasuk: 'Tanggal Masuk',
                               tanggalKeluar: 'Tanggal Keluar',
+                              statusVerval: 'Status Verval',
                               catatan: 'Catatan',
                             };
                             return (

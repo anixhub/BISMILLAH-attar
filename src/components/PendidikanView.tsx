@@ -1557,7 +1557,6 @@ export default function PendidikanView({
                                 <div className="flex items-start justify-between">
                                   <div className="min-w-0">
                                     <h5 className="text-[11px] font-black text-slate-800 leading-tight truncate">{l.nama}</h5>
-                                    <span className="inline-flex rounded bg-slate-200/60 text-slate-700 text-[8px] font-black px-1.5 py-0.2 mt-1">{l.kode}</span>
                                   </div>
                                   <span className="text-[10px] font-mono font-bold text-slate-500 shrink-0">{totalLembagaStudents} / {totalCapacity} Sntr</span>
                                 </div>

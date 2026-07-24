@@ -21,6 +21,7 @@ import {
   School
 } from 'lucide-react';
 import { Santri, Lembaga, Kelas, isGenderMatch } from '../../../types';
+import { demoteSantriToCalonPesertaDidik } from '../../../lib/utils';
 import { renderSantriAvatar, getFormalKelasDisplay } from '../../SekretarisHelper';
 import { MembershipBadge } from '../components/HelperComponents';
 import { AgeFilterConfig, calculateAgeOnDate } from '../AgeFilterModal';
@@ -212,6 +213,7 @@ export default function SantriTableView({
     return paginatedSantri.every(s => isMonitoringWajibComplete(s));
   };
   const [activeEmisDropdownId, setActiveEmisDropdownId] = React.useState<string | null>(null);
+  const [activeVervalDropdownId, setActiveVervalDropdownId] = React.useState<string | null>(null);
   const [activeStatusKeanggotaanDropdownId, setActiveStatusKeanggotaanDropdownId] = React.useState<string | null>(null);
   const [activeDomisiliDropdownId, setActiveDomisiliDropdownId] = React.useState<string | null>(null);
   const [activeFormalKelasDropdownId, setActiveFormalKelasDropdownId] = React.useState<string | null>(null);
@@ -220,6 +222,7 @@ export default function SantriTableView({
   const [actionDropdownPos, setActionDropdownPos] = React.useState<{ top: number; right: number; isUpward?: boolean } | null>(null);
   const [statusDropdownPos, setStatusDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
   const [emisDropdownPos, setEmisDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
+  const [vervalDropdownPos, setVervalDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
   const [domisiliDropdownPos, setDomisiliDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
   const [formalKelasDropdownPos, setFormalKelasDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
 
@@ -1103,9 +1106,10 @@ export default function SantriTableView({
       {visibleColumns.tanggalKeluar && renderSortHeader('tanggalKeluar', 'Tgl Keluar', false, 'w-[105px] min-w-[105px]')}
       {visibleColumns.catatan && renderSortHeader('catatan', 'Catatan', false, 'w-[180px] min-w-[180px]')}
       
-      {/* Selalu Terlihat: Status & Emis */}
+      {/* Status & Emis & Verval */}
       {renderSortHeader('statusKeanggotaan', 'Status', false, 'w-[105px] min-w-[105px]')}
       {renderSortHeader('statusEmis', 'Emis', false, 'w-[95px] min-w-[95px]')}
+      {visibleColumns.statusVerval && renderSortHeader('statusVerval', 'Verval', false, 'w-[95px] min-w-[95px]')}
       
       <th className={`px-2 py-4 text-center font-display text-xs font-bold uppercase tracking-wider sticky top-0 right-0 z-35 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] border-l w-12 min-w-[48px] transition-all duration-300 ${isSelectionMode ? 'hidden md:table-cell' : 'table-cell'} ${headerClass}`}>Aksi</th>
     </tr>
@@ -1958,20 +1962,12 @@ export default function SantriTableView({
                                       e.stopPropagation();
                                       const valToApply = pendingEmis[s.id] || currentEmis;
                                       if (valToApply !== currentEmis) {
-                                        const updated: Santri = {
+                                        let updated: Santri = {
                                           ...s,
                                           statusEmis: valToApply as any
                                         };
                                         if (valToApply === 'Belum') {
-                                          const currentKelas = s.kelas ? s.kelas.trim() : '';
-                                          const isAlreadyCalon = !currentKelas || 
-                                            currentKelas.toLowerCase() === 'tanpa kelas' || 
-                                            currentKelas.toLowerCase().includes('calon peserta didik') || 
-                                            currentKelas.toLowerCase().includes('calon pelajar');
-
-                                          if (!isAlreadyCalon) {
-                                            updated.kelas = 'Calon Peserta Didik';
-                                          }
+                                          updated = demoteSantriToCalonPesertaDidik(s, lembagasList, kelasList);
                                         }
                                         onUpdateSantri?.(updated);
                                       }
@@ -2033,6 +2029,69 @@ export default function SantriTableView({
                     );
                   })()}
                 </td>
+
+                {/* Status Verval */}
+                {visibleColumns.statusVerval && (
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs w-[115px] min-w-[115px] ${
+                    isMonitoringMode && isCellEmpty(s, 'statusVerval') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
+                    {(() => {
+                      const canWrite = s.gender === 'Putri' ? canWritePutri : canWritePutra;
+                      const isEmisTerdaftar = (s.statusEmis || 'Belum').toLowerCase() === 'terdaftar';
+                      const currentVerval = isEmisTerdaftar ? (s.statusVerval || 'Proses') : 'Proses';
+                      const isSukses = currentVerval === 'Sukses';
+
+                      return (
+                        <div className="relative inline-block text-left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (isSelectionMode) return;
+                              e.stopPropagation();
+                              if (!canWrite || !isEmisTerdaftar) return;
+                              if (activeVervalDropdownId === s.id) {
+                                setActiveVervalDropdownId(null);
+                                setVervalDropdownPos(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                const isUpward = spaceBelow < 150;
+                                setVervalDropdownPos({
+                                  top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                                  left: Math.max(12, rect.left),
+                                  isUpward
+                                });
+                                setActiveVervalDropdownId(s.id);
+                              }
+                              setActiveEmisDropdownId(null);
+                              setActiveFormalKelasDropdownId(null);
+                              setActiveDomisiliDropdownId(null);
+                              setActiveStatusKeanggotaanDropdownId(null);
+                            }}
+                            disabled={!canWrite || !isEmisTerdaftar || isSelectionMode}
+                            className={`dropdown-trigger-btn inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold border transition-all ${
+                              isSelectionMode || !isEmisTerdaftar
+                                ? 'bg-slate-100 text-slate-400 border-slate-200/80 cursor-not-allowed opacity-70'
+                                : isSukses
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 cursor-pointer shadow-2xs hover:shadow-xs'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300 cursor-pointer shadow-2xs hover:shadow-xs'
+                            }`}
+                            title={
+                              !isEmisTerdaftar 
+                                ? "Hanya bisa diatur saat Status EMIS Terdaftar" 
+                                : canWrite && !isSelectionMode ? "Klik untuk mengubah Status Verval" : undefined
+                            }
+                          >
+                            <span>{currentVerval}</span>
+                            {canWrite && isEmisTerdaftar && !isSelectionMode && (
+                              <ChevronsUpDown className="h-3 w-3 opacity-70 shrink-0 text-slate-500" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                )}
 
                 {/* Aksi (Sticky Right) */}
                 <td 
@@ -2353,20 +2412,12 @@ export default function SantriTableView({
                           e.stopPropagation();
                           const valToApply = pendingEmis[s.id] || currentEmis;
                           if (valToApply !== currentEmis) {
-                            const updated: Santri = {
+                            let updated: Santri = {
                               ...s,
                               statusEmis: valToApply as any
                             };
                             if (valToApply === 'Belum') {
-                              const currentKelas = s.kelas ? s.kelas.trim() : '';
-                              const isAlreadyCalon = !currentKelas || 
-                                currentKelas.toLowerCase() === 'tanpa kelas' || 
-                                currentKelas.toLowerCase().includes('calon peserta didik') || 
-                                currentKelas.toLowerCase().includes('calon pelajar');
-
-                              if (!isAlreadyCalon) {
-                                updated.kelas = 'Calon Peserta Didik';
-                              }
+                              updated = demoteSantriToCalonPesertaDidik(s, lembagasList, kelasList);
                             }
                             onUpdateSantri?.(updated);
                           }
@@ -2419,6 +2470,68 @@ export default function SantriTableView({
                         }`}
                       >
                         <span>{emisOption}</span>
+                        {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Portal Dropdown Status Verval */}
+      {typeof document !== 'undefined' && activeVervalDropdownId && vervalDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveVervalDropdownId(null);
+              setVervalDropdownPos(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: vervalDropdownPos.isUpward ? 'auto' : `${vervalDropdownPos.top}px`,
+              bottom: vervalDropdownPos.isUpward ? `${window.innerHeight - vervalDropdownPos.top}px` : 'auto',
+              left: `${vervalDropdownPos.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="dropdown-container-box w-max min-w-[115px] max-w-[140px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] py-1 text-xs font-semibold text-slate-700 animate-in fade-in zoom-in-95"
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeVervalDropdownId);
+              if (!s) return null;
+              const currentVerval = s.statusVerval || 'Proses';
+
+              return (
+                <>
+                  {(['Proses', 'Sukses'] as const).map((vervalOption) => {
+                    const isCurrent = currentVerval === vervalOption;
+                    return (
+                      <button
+                        key={vervalOption}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (vervalOption !== currentVerval) {
+                            onUpdateSantri?.({
+                              ...s,
+                              statusVerval: vervalOption
+                            });
+                          }
+                          setActiveVervalDropdownId(null);
+                          setVervalDropdownPos(null);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 transition-colors flex items-center justify-between cursor-pointer ${
+                          isCurrent ? 'bg-emerald-50 text-emerald-700 font-bold' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span>{vervalOption}</span>
                         {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
                       </button>
                     );
@@ -2645,7 +2758,7 @@ export default function SantriTableView({
                         .filter(fl => isGenderMatch(fl.gender, s.gender))
                         .map((fl) => (
                           <option key={fl.id} value={String(fl.id)}>
-                            {fl.nama} {fl.kode ? `(${fl.kode})` : ''}
+                            {fl.nama}
                           </option>
                         ))}
                     </select>
@@ -2683,9 +2796,13 @@ export default function SantriTableView({
                         <option value="">Pilih Lembaga Terlebih Dahulu</option>
                       ) : (
                         <>
-                          <option value="calon">Calon Peserta Didik (Default)</option>
+                          <option value="calon">Calon Peserta Didik</option>
                           {kelasList
-                            .filter(k => String(k.lembagaId || (k as any).lembaga_id) === String(pendingState.lem?.id))
+                            .filter(k => 
+                              String(k.lembagaId || (k as any).lembaga_id) === String(pendingState.lem?.id) &&
+                              k.nama.trim().toLowerCase() !== 'calon peserta didik' &&
+                              k.nama.trim().toLowerCase() !== 'calon pelajar'
+                            )
                             .map((k) => (
                               <option
                                 key={k.id}
