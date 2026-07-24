@@ -126,13 +126,6 @@ export default function SantriCardView({
     if (e.button !== 0) return; // Left click only
 
     const target = e.target as HTMLElement;
-    if (
-      target.closest('button') || 
-      target.closest('select') || 
-      target.closest('a')
-    ) {
-      return;
-    }
 
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -146,7 +139,6 @@ export default function SantriCardView({
 
     setDragStart({ pageX: e.clientX + window.scrollX, pageY: e.clientY + window.scrollY });
     setDragBox(null);
-    e.preventDefault();
   };
 
   React.useEffect(() => {
@@ -260,10 +252,7 @@ export default function SantriCardView({
       updateSelection();
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!draggedRef.current && clickedIdRef.current) {
-        toggleSingleSelection(clickedIdRef.current, e.shiftKey);
-      }
+    const handleMouseUp = () => {
       setDragStart(null);
       setDragBox(null);
     };
@@ -280,16 +269,9 @@ export default function SantriCardView({
 
   const handleCardClick = (e: React.MouseEvent, index: number, s: Santri) => {
     if (!isSelectionMode) return;
+    if (draggedRef.current) return;
 
-    const target = e.target as HTMLElement;
-    if (
-      target.closest('button') || 
-      target.closest('input') || 
-      target.closest('select') || 
-      target.closest('a')
-    ) {
-      return;
-    }
+    toggleSingleSelection(s.id, e.shiftKey);
   };
 
   return (
@@ -374,7 +356,7 @@ export default function SantriCardView({
                       e.stopPropagation();
                       setActiveSantriDropdownId(activeSantriDropdownId === s.id ? null : s.id);
                     }}
-                    className="text-slate-500 hover:text-slate-800 p-1 rounded-lg transition-colors cursor-pointer active:scale-90"
+                    className="dropdown-trigger-btn text-slate-500 hover:text-slate-800 p-1 rounded-lg transition-colors cursor-pointer active:scale-90"
                   >
                     <MoreVertical className="w-5 h-5 text-slate-500" />
                   </button>
@@ -395,7 +377,7 @@ export default function SantriCardView({
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 4, scale: 0.95 }}
                           transition={{ duration: 0.1 }}
-                          className="absolute right-0 mt-1 w-24 rounded-sm border border-slate-300 bg-white py-1 shadow-md z-40 text-slate-700 font-sans"
+                          className="dropdown-container-box absolute right-0 mt-1 w-24 rounded-sm border border-slate-300 bg-white py-1 shadow-md z-40 text-slate-700 font-sans"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button

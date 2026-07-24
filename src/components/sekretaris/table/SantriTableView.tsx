@@ -158,7 +158,7 @@ const isCellEmpty = (s: Santri, key: string): boolean => {
     case 'noHp':
       return !s.noHp || !s.noHp.trim() || s.noHp === '-';
     case 'statusDomisili':
-      return s.statusKeanggotaan === 'Aktif' && (!s.statusDomisili || s.statusDomisili.trim() === '' || s.statusDomisili === '-');
+      return s.statusKeanggotaan === 'Aktif' && (!s.statusDomisili || (s.statusDomisili as string).trim() === '' || (s.statusDomisili as string) === '-');
     case 'tanggalMasuk':
       return !s.tanggalMasuk || !s.tanggalMasuk.trim() || s.tanggalMasuk === '-';
     case 'tanggalKeluar':
@@ -215,6 +215,13 @@ export default function SantriTableView({
   const [activeStatusKeanggotaanDropdownId, setActiveStatusKeanggotaanDropdownId] = React.useState<string | null>(null);
   const [activeDomisiliDropdownId, setActiveDomisiliDropdownId] = React.useState<string | null>(null);
   const [activeFormalKelasDropdownId, setActiveFormalKelasDropdownId] = React.useState<string | null>(null);
+
+  // Position states for floating portal dropdowns
+  const [actionDropdownPos, setActionDropdownPos] = React.useState<{ top: number; right: number; isUpward?: boolean } | null>(null);
+  const [statusDropdownPos, setStatusDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
+  const [emisDropdownPos, setEmisDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
+  const [domisiliDropdownPos, setDomisiliDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
+  const [formalKelasDropdownPos, setFormalKelasDropdownPos] = React.useState<{ top: number; left: number; isUpward?: boolean } | null>(null);
 
   // Pending selection states for column dropdowns
   const [pendingDomisili, setPendingDomisili] = React.useState<{ [santriId: string]: string }>({});
@@ -773,9 +780,7 @@ export default function SantriTableView({
     if (e.button !== 0) return; // Left click only
 
     const target = e.target as HTMLElement;
-    if (
-      target.closest('thead') // Ignore clicks starting on the table header
-    ) {
+    if (target.closest('thead')) {
       return;
     }
 
@@ -791,7 +796,6 @@ export default function SantriTableView({
 
     setDragStart({ pageX: e.clientX + window.scrollX, pageY: e.clientY + window.scrollY });
     setDragBox(null);
-    e.preventDefault();
   };
 
   React.useEffect(() => {
@@ -905,10 +909,7 @@ export default function SantriTableView({
       updateSelection();
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!draggedRef.current && clickedIdRef.current) {
-        toggleSingleSelection(clickedIdRef.current, e.shiftKey);
-      }
+    const handleMouseUp = () => {
       setDragStart(null);
       setDragBox(null);
     };
@@ -925,6 +926,8 @@ export default function SantriTableView({
 
   const handleRowClick = (e: React.MouseEvent, index: number, s: Santri) => {
     if (!isSelectionMode) return;
+    if (draggedRef.current) return;
+
     toggleSingleSelection(s.id, e.shiftKey);
   };
 
@@ -1168,7 +1171,7 @@ export default function SantriTableView({
                 data-drag-id={s.id}
                 onClick={(e) => handleRowClick(e, idx, s)}
                 className={`transition-colors group ${
-                  isSelectionMode ? 'cursor-pointer font-semibold' : ''
+                  isSelectionMode ? 'cursor-pointer font-semibold select-none' : ''
                 } ${
                   isSelectionMode && isSelected
                     ? 'bg-emerald-50/60 hover:bg-emerald-100/60'
@@ -1177,7 +1180,11 @@ export default function SantriTableView({
               >
                  {isSelectionMode && (
                   <td 
-                    className={`px-3 py-4 text-center sticky left-0 transition-colors z-10 border-r border-slate-100 w-12 min-w-[48px] max-w-[48px] ${
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSingleSelection(s.id, e.shiftKey);
+                    }}
+                    className={`px-3 py-4 text-center sticky left-0 transition-colors z-10 border-r border-slate-100 w-12 min-w-[48px] max-w-[48px] cursor-pointer ${
                       isSelected ? 'bg-emerald-50' : 'bg-white group-hover:bg-slate-50'
                     }`}
                   >
@@ -1402,7 +1409,20 @@ export default function SantriTableView({
                               if (isSelectionMode) return;
                               e.stopPropagation();
                               if (!canWrite) return;
-                              setActiveFormalKelasDropdownId(prev => prev === s.id ? null : s.id);
+                              if (activeFormalKelasDropdownId === s.id) {
+                                setActiveFormalKelasDropdownId(null);
+                                setFormalKelasDropdownPos(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                const isUpward = spaceBelow < 320;
+                                setFormalKelasDropdownPos({
+                                  top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                                  left: Math.max(12, Math.min(rect.left, window.innerWidth - 300)),
+                                  isUpward
+                                });
+                                setActiveFormalKelasDropdownId(s.id);
+                              }
                               setActiveEmisDropdownId(null);
                               setActiveDomisiliDropdownId(null);
                               setActiveStatusKeanggotaanDropdownId(null);
@@ -1419,8 +1439,8 @@ export default function SantriTableView({
                             className={`dropdown-trigger-btn w-full inline-flex items-center justify-between gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold border transition-all ${
                               isSelectionMode
                                 ? 'bg-slate-100/70 text-slate-400 border-slate-200/50 shadow-none pointer-events-none filter grayscale opacity-60'
-                                : currentFormalLembaga
-                                  ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                                : currentFormalLembaga 
+                                  ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 hover:border-blue-300' 
                                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                             } ${canWrite && !isSelectionMode ? 'cursor-pointer shadow-2xs hover:shadow-xs' : 'cursor-default'}`}
                             title={canWrite && !isSelectionMode ? "Klik untuk memilih Lembaga & Kelas Formal" : undefined}
@@ -1430,144 +1450,6 @@ export default function SantriTableView({
                               <ChevronsUpDown className="h-3 w-3 opacity-70 shrink-0 text-slate-500" />
                             )}
                           </button>
-
-                          {isOpen && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="dropdown-container-box absolute left-0 mt-1.5 w-[270px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[120] p-3.5 text-xs text-slate-700 font-sans"
-                            >
-                              {/* Header */}
-                              <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                                <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[12px]">
-                                  <School className="h-4 w-4 text-emerald-600 shrink-0" />
-                                  <span>Pendidikan Formal</span>
-                                </div>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                                  isEmis 
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}>
-                                  {isEmis ? 'EMIS Terdaftar' : 'Belum EMIS'}
-                                </span>
-                              </div>
-
-                              {/* Box 1 (Atas) - Select Lembaga */}
-                              <div className="mb-3">
-                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                                  1. Pilih Lembaga Formal
-                                </label>
-                                <select
-                                  value={pendingState.lem ? String(pendingState.lem.id) : ''}
-                                  onChange={(e) => {
-                                    const chosenId = e.target.value;
-                                    const selectedLem = formalLembagas.find(l => String(l.id) === chosenId) || null;
-                                    setPendingFormalKelas(prev => ({
-                                      ...prev,
-                                      [s.id]: {
-                                        lem: selectedLem,
-                                        cls: null
-                                      }
-                                    }));
-                                  }}
-                                  className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all shadow-2xs cursor-pointer"
-                                >
-                                  <option value="">-- Tanpa Lembaga Formal --</option>
-                                  {formalLembagas
-                                    .filter(fl => isGenderMatch(fl.gender, s.gender))
-                                    .map((fl) => (
-                                      <option key={fl.id} value={String(fl.id)}>
-                                        {fl.nama} {fl.kode ? `(${fl.kode})` : ''}
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
-
-                              {/* Box 2 (Bawah) - Select Kelas */}
-                              <div className="mb-3">
-                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                                  2. Pilih Kelas / Status
-                                </label>
-                                <select
-                                  disabled={!pendingState.lem}
-                                  value={pendingState.cls && isEmis ? String(pendingState.cls.id) : 'calon'}
-                                  onChange={(e) => {
-                                    const chosenClassId = e.target.value;
-                                    let selectedCls: Kelas | null = null;
-                                    if (pendingState.lem && chosenClassId !== 'calon' && isEmis) {
-                                      selectedCls = kelasList.find(k => String(k.id) === chosenClassId) || null;
-                                    }
-                                    setPendingFormalKelas(prev => ({
-                                      ...prev,
-                                      [s.id]: {
-                                        ...prev[s.id],
-                                        cls: selectedCls
-                                      }
-                                    }));
-                                  }}
-                                  className={`w-full px-2.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
-                                    !pendingState.lem
-                                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                                      : 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 cursor-pointer'
-                                  }`}
-                                >
-                                  {!pendingState.lem ? (
-                                    <option value="">Pilih Lembaga Terlebih Dahulu</option>
-                                  ) : (
-                                    <>
-                                      <option value="calon">Calon Peserta Didik (Default)</option>
-                                      {kelasList
-                                        .filter(k => String(k.lembagaId || (k as any).lembaga_id) === String(pendingState.lem?.id))
-                                        .map((k) => (
-                                          <option
-                                            key={k.id}
-                                            value={String(k.id)}
-                                            disabled={!isEmis}
-                                            className={!isEmis ? 'text-slate-400 bg-slate-100' : ''}
-                                          >
-                                            {k.nama} {!isEmis ? ' (Perlu EMIS)' : ''}
-                                          </option>
-                                        ))
-                                      }
-                                    </>
-                                  )}
-                                </select>
-                              </div>
-
-                              {/* Info box for EMIS */}
-                              {!isEmis && (
-                                <div className="mb-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[10.5px] text-amber-900 font-medium leading-snug flex items-center gap-1.5 shadow-2xs">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                                  <span>Daftarkan EMIS sebelum mendistribusikan ke kelas</span>
-                                </div>
-                              )}
-
-                              {/* Action buttons */}
-                              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-slate-100">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveFormalKelasDropdownId(null);
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 cursor-pointer transition-colors"
-                                >
-                                  Batal
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUpdateFormalClass(s, pendingState.lem, pendingState.cls);
-                                    setActiveFormalKelasDropdownId(null);
-                                  }}
-                                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors flex items-center gap-1"
-                                >
-                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                  <span>Simpan</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       );
                     })()}
@@ -1731,7 +1613,20 @@ export default function SantriTableView({
                                 if (isSelectionMode) return;
                                 e.stopPropagation();
                                 if (!canWrite) return;
-                                setActiveDomisiliDropdownId(prev => prev === s.id ? null : s.id);
+                                if (activeDomisiliDropdownId === s.id) {
+                                  setActiveDomisiliDropdownId(null);
+                                  setDomisiliDropdownPos(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                  const isUpward = spaceBelow < 150;
+                                  setDomisiliDropdownPos({
+                                    top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                                    left: Math.max(12, rect.left),
+                                    isUpward
+                                  });
+                                  setActiveDomisiliDropdownId(s.id);
+                                }
                                 setActiveFormalKelasDropdownId(null);
                                 setActiveEmisDropdownId(null);
                                 setActiveStatusKeanggotaanDropdownId(null);
@@ -1873,7 +1768,20 @@ export default function SantriTableView({
                             if (isSelectionMode) return;
                             e.stopPropagation();
                             if (!canWrite) return;
-                            setActiveStatusKeanggotaanDropdownId(prev => prev === s.id ? null : s.id);
+                            if (activeStatusKeanggotaanDropdownId === s.id) {
+                              setActiveStatusKeanggotaanDropdownId(null);
+                              setStatusDropdownPos(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const spaceBelow = window.innerHeight - rect.bottom;
+                              const isUpward = spaceBelow < 160;
+                              setStatusDropdownPos({
+                                top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                                left: Math.max(12, rect.left),
+                                isUpward
+                              });
+                              setActiveStatusKeanggotaanDropdownId(s.id);
+                            }
                             setActiveFormalKelasDropdownId(null);
                             setActiveDomisiliDropdownId(null);
                             setActiveEmisDropdownId(null);
@@ -1997,7 +1905,20 @@ export default function SantriTableView({
                             if (isSelectionMode) return;
                             e.stopPropagation();
                             if (!canWrite) return;
-                            setActiveEmisDropdownId(prev => prev === s.id ? null : s.id);
+                            if (activeEmisDropdownId === s.id) {
+                              setActiveEmisDropdownId(null);
+                              setEmisDropdownPos(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const spaceBelow = window.innerHeight - rect.bottom;
+                              const isUpward = spaceBelow < 150;
+                              setEmisDropdownPos({
+                                top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                                left: Math.max(12, rect.left),
+                                isUpward
+                              });
+                              setActiveEmisDropdownId(s.id);
+                            }
                             setActiveFormalKelasDropdownId(null);
                             setActiveDomisiliDropdownId(null);
                             setActiveStatusKeanggotaanDropdownId(null);
@@ -2115,14 +2036,11 @@ export default function SantriTableView({
 
                 {/* Aksi (Sticky Right) */}
                 <td 
-                  onClick={(e) => {
-                    if (isSelectionMode) {
-                      e.stopPropagation();
-                    }
-                  }}
                   className={`px-2 py-4 text-center whitespace-nowrap sticky right-0 transition-colors shadow-[-2px_0_5px_rgba(0,0,0,0.05)] border-l border-slate-100 w-12 min-w-[48px] ${
                     isSelectionMode
-                      ? 'bg-slate-50 text-slate-400 hidden md:table-cell'
+                      ? isSelected
+                        ? 'bg-emerald-50 text-emerald-800 hidden md:table-cell cursor-pointer'
+                        : 'bg-slate-50 text-slate-400 hidden md:table-cell cursor-pointer'
                       : 'bg-white group-hover:bg-slate-50 table-cell'
                   } ${activeSantriDropdownId === `tbl-${s.id}` || activeDesktopDropdownId === s.id ? 'z-[100]' : 'z-20'}`}
                 >
@@ -2133,12 +2051,26 @@ export default function SantriTableView({
                         type="button"
                         disabled={isSelectionMode}
                         onClick={(e) => {
+                          if (isSelectionMode) return;
                           e.stopPropagation();
-                          setActiveDesktopDropdownId(activeDesktopDropdownId === s.id ? null : s.id);
+                          if (activeDesktopDropdownId === s.id) {
+                            setActiveDesktopDropdownId(null);
+                            setActionDropdownPos(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const isUpward = spaceBelow < 220;
+                            setActionDropdownPos({
+                              top: isUpward ? rect.top - 6 : rect.bottom + 6,
+                              right: window.innerWidth - rect.right,
+                              isUpward
+                            });
+                            setActiveDesktopDropdownId(s.id);
+                          }
                         }}
-                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                        className={`dropdown-trigger-btn inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
                           isSelectionMode
-                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-200'
+                            ? 'bg-slate-100 text-slate-300 pointer-events-none border border-slate-200'
                             : activeDesktopDropdownId === s.id
                               ? 'bg-slate-100 text-slate-700 border border-slate-200'
                               : 'bg-slate-50 text-slate-600 hover:bg-slate-100 cursor-pointer active:scale-95'
@@ -2147,104 +2079,6 @@ export default function SantriTableView({
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
-
-                      <AnimatePresence>
-                        {activeDesktopDropdownId === s.id && (
-                          <>
-                            {/* Backdrop overlay to close when clicking outside */}
-                            <div 
-                              className="fixed inset-0 z-40 bg-transparent"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveDesktopDropdownId(null);
-                              }}
-                            />
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                              transition={{ duration: 0.1 }}
-                              className={`absolute right-0 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-50 text-slate-700 text-left font-sans ${
-                                isLastFew ? 'bottom-full mb-1' : 'top-full'
-                              }`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="space-y-0.5">
-                                {/* Detail Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveDesktopDropdownId(null);
-                                    setSelectedSantri(s);
-                                  }}
-                                  className="flex w-full items-center px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
-                                >
-                                  <span>Detail Biodata</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveDesktopDropdownId(null);
-                                    setIsSelectionMode(true);
-                                    setLastSelectedIndex(idx);
-                                    setLastAction('select');
-                                    if (!selectedSantriIds.includes(s.id)) {
-                                      setSelectedSantriIds([...selectedSantriIds, s.id]);
-                                    }
-                                  }}
-                                  className="flex w-full items-center px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-emerald-55 hover:text-emerald-800 transition-colors cursor-pointer"
-                                >
-                                  <span>Pilih</span>
-                                </button>
-
-                                {/* Edit Button */}
-                                {canWriteForSantri && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveDesktopDropdownId(null);
-                                      handleStartEditSantri(s);
-                                    }}
-                                    className="flex w-full items-center px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer"
-                                  >
-                                    <span>Ubah Data</span>
-                                  </button>
-                                )}
-
-                                {/* Print Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveDesktopDropdownId(null);
-                                    handlePrintClick(s);
-                                  }}
-                                  className="flex w-full items-center px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                >
-                                  <span>Cetak Data</span>
-                                </button>
-
-                                {/* Delete Button */}
-                                {canWriteForSantri && (
-                                  <>
-                                    <div className="my-1 border-t border-slate-100" />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveDesktopDropdownId(null);
-                                        handleDeleteClick(s.id, s.nama);
-                                      }}
-                                      className="flex w-full items-center px-2.5 py-2 rounded-lg text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-                                    >
-                                      <span>Hapus Data</span>
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </motion.div>
-                          </>
-                        )}
-                      </AnimatePresence>
                     </div>
                   </div>
                 </td>
@@ -2254,6 +2088,662 @@ export default function SantriTableView({
         </tbody>
       </table>
     </div>
+
+      {/* Portal Dropdown Aksi */}
+      {typeof document !== 'undefined' && activeDesktopDropdownId && actionDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveDesktopDropdownId(null);
+              setActionDropdownPos(null);
+            }}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: actionDropdownPos.isUpward ? 4 : -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: actionDropdownPos.isUpward ? 4 : -4 }}
+            transition={{ duration: 0.1 }}
+            style={{
+              position: 'fixed',
+              top: actionDropdownPos.isUpward ? 'auto' : `${actionDropdownPos.top}px`,
+              bottom: actionDropdownPos.isUpward ? `${window.innerHeight - actionDropdownPos.top}px` : 'auto',
+              right: `${actionDropdownPos.right}px`,
+            }}
+            className="dropdown-container-box w-38 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl z-[9999] text-slate-700 text-left font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeDesktopDropdownId);
+              if (!s) return null;
+              const idx = paginatedSantri.findIndex(item => item.id === activeDesktopDropdownId);
+              const canWriteForSantri = s.gender === 'Putri' ? canWritePutri : canWritePutra;
+
+              return (
+                <div className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDesktopDropdownId(null);
+                      setActionDropdownPos(null);
+                      setSelectedSantri(s);
+                    }}
+                    className="flex w-full items-center px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                  >
+                    <span>Detail Biodata</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDesktopDropdownId(null);
+                      setActionDropdownPos(null);
+                      setIsSelectionMode(true);
+                      setLastSelectedIndex(idx);
+                      setLastAction('select');
+                      if (!selectedSantriIds.includes(s.id)) {
+                        setSelectedSantriIds([...selectedSantriIds, s.id]);
+                      }
+                    }}
+                    className="flex w-full items-center px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors cursor-pointer"
+                  >
+                    <span>Pilih</span>
+                  </button>
+
+                  {canWriteForSantri && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveDesktopDropdownId(null);
+                        setActionDropdownPos(null);
+                        handleStartEditSantri(s);
+                      }}
+                      className="flex w-full items-center px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer"
+                    >
+                      <span>Ubah Data</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDesktopDropdownId(null);
+                      setActionDropdownPos(null);
+                      handlePrintClick(s);
+                    }}
+                    className="flex w-full items-center px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                  >
+                    <span>Cetak Data</span>
+                  </button>
+
+                  {canWriteForSantri && (
+                    <>
+                      <div className="my-1 border-t border-slate-100" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveDesktopDropdownId(null);
+                          setActionDropdownPos(null);
+                          handleDeleteClick(s.id, s.nama);
+                        }}
+                        className="flex w-full items-center px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                      >
+                        <span>Hapus Data</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </motion.div>
+        </>,
+        document.body
+      )}
+
+      {/* Portal Dropdown Status Keanggotaan */}
+      {typeof document !== 'undefined' && activeStatusKeanggotaanDropdownId && statusDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveStatusKeanggotaanDropdownId(null);
+              setStatusDropdownPos(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: statusDropdownPos.isUpward ? 'auto' : `${statusDropdownPos.top}px`,
+              bottom: statusDropdownPos.isUpward ? `${window.innerHeight - statusDropdownPos.top}px` : 'auto',
+              left: `${statusDropdownPos.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="dropdown-container-box w-max min-w-[120px] max-w-[150px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] py-1 text-xs font-semibold text-slate-700 animate-in fade-in zoom-in-95"
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeStatusKeanggotaanDropdownId);
+              if (!s) return null;
+              const currentStatus = s.statusKeanggotaan || 'Aktif';
+              const pendingVal = pendingStatusKeanggotaan[s.id];
+              const hasChangedStatus = pendingVal !== undefined && pendingVal !== currentStatus;
+
+              return (
+                <>
+                  {hasChangedStatus && (
+                    <div className="absolute -top-2 -right-8 z-[10000] flex flex-col items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const valToApply = pendingStatusKeanggotaan[s.id] || currentStatus;
+                          if (valToApply !== currentStatus) {
+                            const updated: Santri = {
+                              ...s,
+                              statusKeanggotaan: valToApply as any,
+                            };
+                            if (valToApply === 'Aktif') {
+                              updated.tanggalKeluar = undefined;
+                              if (!updated.statusDomisili) updated.statusDomisili = 'Muqim';
+                            } else {
+                              updated.statusDomisili = undefined;
+                              if (!updated.tanggalKeluar) {
+                                updated.tanggalKeluar = new Date().toISOString().split('T')[0];
+                              }
+                            }
+                            onUpdateSantri?.(updated);
+                          }
+                          setActiveStatusKeanggotaanDropdownId(null);
+                          setStatusDropdownPos(null);
+                          setPendingStatusKeanggotaan(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                        title="Terapkan Perubahan"
+                      >
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveStatusKeanggotaanDropdownId(null);
+                          setStatusDropdownPos(null);
+                          setPendingStatusKeanggotaan(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 cursor-pointer transition-colors"
+                        title="Batal"
+                      >
+                        <X className="h-4 w-4 stroke-[3]" />
+                      </button>
+                    </div>
+                  )}
+
+                  {(['Aktif', 'Alumni', 'Meninggal'] as const).map((opt) => {
+                    const activeVal = pendingStatusKeanggotaan[s.id] || currentStatus;
+                    const isCurrent = activeVal === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingStatusKeanggotaan(prev => ({ ...prev, [s.id]: opt }));
+                        }}
+                        className={`w-full text-left px-3 py-1.5 transition-colors flex items-center justify-between cursor-pointer ${
+                          isCurrent ? 'bg-emerald-50 text-emerald-700 font-bold' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span>{opt}</span>
+                        {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Portal Dropdown Status EMIS */}
+      {typeof document !== 'undefined' && activeEmisDropdownId && emisDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveEmisDropdownId(null);
+              setEmisDropdownPos(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: emisDropdownPos.isUpward ? 'auto' : `${emisDropdownPos.top}px`,
+              bottom: emisDropdownPos.isUpward ? `${window.innerHeight - emisDropdownPos.top}px` : 'auto',
+              left: `${emisDropdownPos.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="dropdown-container-box w-max min-w-[115px] max-w-[140px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] py-1 text-xs font-semibold text-slate-700 animate-in fade-in zoom-in-95"
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeEmisDropdownId);
+              if (!s) return null;
+              const currentEmis = s.statusEmis || 'Belum';
+              const pendingVal = pendingEmis[s.id];
+              const hasChangedEmis = pendingVal !== undefined && pendingVal !== currentEmis;
+
+              return (
+                <>
+                  {hasChangedEmis && (
+                    <div className="absolute -top-2 -right-8 z-[10000] flex flex-col items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const valToApply = pendingEmis[s.id] || currentEmis;
+                          if (valToApply !== currentEmis) {
+                            const updated: Santri = {
+                              ...s,
+                              statusEmis: valToApply as any
+                            };
+                            if (valToApply === 'Belum') {
+                              const currentKelas = s.kelas ? s.kelas.trim() : '';
+                              const isAlreadyCalon = !currentKelas || 
+                                currentKelas.toLowerCase() === 'tanpa kelas' || 
+                                currentKelas.toLowerCase().includes('calon peserta didik') || 
+                                currentKelas.toLowerCase().includes('calon pelajar');
+
+                              if (!isAlreadyCalon) {
+                                updated.kelas = 'Calon Peserta Didik';
+                              }
+                            }
+                            onUpdateSantri?.(updated);
+                          }
+                          setActiveEmisDropdownId(null);
+                          setEmisDropdownPos(null);
+                          setPendingEmis(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                        title="Terapkan Perubahan"
+                      >
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveEmisDropdownId(null);
+                          setEmisDropdownPos(null);
+                          setPendingEmis(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 cursor-pointer transition-colors"
+                        title="Batal"
+                      >
+                        <X className="h-4 w-4 stroke-[3]" />
+                      </button>
+                    </div>
+                  )}
+
+                  {(['Terdaftar', 'Belum'] as const).map((emisOption) => {
+                    const activeVal = pendingEmis[s.id] || currentEmis;
+                    const isCurrent = activeVal === emisOption;
+                    return (
+                      <button
+                        key={emisOption}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingEmis(prev => ({ ...prev, [s.id]: emisOption }));
+                        }}
+                        className={`w-full text-left px-3 py-1.5 transition-colors flex items-center justify-between cursor-pointer ${
+                          isCurrent ? 'bg-emerald-50 text-emerald-700 font-bold' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span>{emisOption}</span>
+                        {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Portal Dropdown Status Domisili */}
+      {typeof document !== 'undefined' && activeDomisiliDropdownId && domisiliDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveDomisiliDropdownId(null);
+              setDomisiliDropdownPos(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: domisiliDropdownPos.isUpward ? 'auto' : `${domisiliDropdownPos.top}px`,
+              bottom: domisiliDropdownPos.isUpward ? `${window.innerHeight - domisiliDropdownPos.top}px` : 'auto',
+              left: `${domisiliDropdownPos.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="dropdown-container-box w-max min-w-[110px] max-w-[135px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] py-1 text-xs font-semibold text-slate-700 animate-in fade-in zoom-in-95"
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeDomisiliDropdownId);
+              if (!s) return null;
+              const domisiliVal = s.statusDomisili || 'Muqim';
+              const pendingVal = pendingDomisili[s.id];
+              const hasChangedDomisili = pendingVal !== undefined && pendingVal !== domisiliVal;
+
+              return (
+                <>
+                  {hasChangedDomisili && (
+                    <div className="absolute -top-2 -right-8 z-[10000] flex flex-col items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const valToApply = pendingDomisili[s.id] || domisiliVal;
+                          if (valToApply !== domisiliVal) {
+                            onUpdateSantri?.({
+                              ...s,
+                              statusDomisili: valToApply as any
+                            });
+                          }
+                          setActiveDomisiliDropdownId(null);
+                          setDomisiliDropdownPos(null);
+                          setPendingDomisili(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                        title="Terapkan Perubahan"
+                      >
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDomisiliDropdownId(null);
+                          setDomisiliDropdownPos(null);
+                          setPendingDomisili(prev => {
+                            const copy = { ...prev };
+                            delete copy[s.id];
+                            return copy;
+                          });
+                        }}
+                        className="rounded-lg p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 cursor-pointer transition-colors"
+                        title="Batal"
+                      >
+                        <X className="h-4 w-4 stroke-[3]" />
+                      </button>
+                    </div>
+                  )}
+
+                  {(['Muqim', 'Kampung'] as const).map((domOption) => {
+                    const activeVal = pendingDomisili[s.id] || domisiliVal;
+                    const isCurrent = activeVal === domOption;
+                    return (
+                      <button
+                        key={domOption}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingDomisili(prev => ({ ...prev, [s.id]: domOption }));
+                        }}
+                        className={`w-full text-left px-3 py-1.5 transition-colors flex items-center justify-between cursor-pointer ${
+                          isCurrent ? 'bg-emerald-50 text-emerald-700 font-bold' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span>{domOption}</span>
+                        {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Portal Popover Pendidikan Formal */}
+      {typeof document !== 'undefined' && activeFormalKelasDropdownId && formalKelasDropdownPos && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[9998] bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveFormalKelasDropdownId(null);
+              setFormalKelasDropdownPos(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: formalKelasDropdownPos.isUpward ? 'auto' : `${formalKelasDropdownPos.top}px`,
+              bottom: formalKelasDropdownPos.isUpward ? `${window.innerHeight - formalKelasDropdownPos.top}px` : 'auto',
+              left: `${formalKelasDropdownPos.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="dropdown-container-box w-[280px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] p-3.5 text-xs text-slate-700 font-sans animate-in fade-in zoom-in-95"
+          >
+            {(() => {
+              const s = paginatedSantri.find(item => item.id === activeFormalKelasDropdownId);
+              if (!s) return null;
+              const getLembagaJenis = (l: Lembaga): 'Formal' | 'Internal' => {
+                if (l.jenis && (l.jenis === 'Formal' || l.jenis === 'Internal')) return l.jenis;
+                const lower = (l.nama || '').toLowerCase();
+                if (
+                  lower.includes('madin') || lower.includes('diniyah') || lower.includes('tpq') ||
+                  lower.includes('tahfidz') || lower.includes('pondok') || lower.includes('kitab') ||
+                  lower.includes('internal') || (l.kode && l.kode.toLowerCase().includes('madin'))
+                ) {
+                  return 'Internal';
+                }
+                return 'Formal';
+              };
+
+              const formalLembagas = lembagasList.filter(l => getLembagaJenis(l) === 'Formal');
+              const isEmis = (s.statusEmis || 'Belum').toLowerCase() === 'terdaftar';
+              
+              let currentFormalLembaga: Lembaga | null = null;
+              let currentFormalClass: Kelas | null = null;
+              const sClasses = s.kelas ? s.kelas.split(',').map(x => x.trim()) : [];
+
+              for (const fl of formalLembagas) {
+                const classesOfFl = kelasList.filter(k => String(k.lembagaId || (k as any).lembaga_id) === String(fl.id));
+                const matchedClass = classesOfFl.find(k => k.nama && sClasses.some(sc => sc.toLowerCase() === k.nama.trim().toLowerCase()));
+                if (matchedClass) {
+                  currentFormalLembaga = fl;
+                  currentFormalClass = matchedClass;
+                  break;
+                }
+              }
+
+              if (!currentFormalLembaga && s.pendidikanFormal) {
+                for (const fl of formalLembagas) {
+                  if (s.pendidikanFormal.toLowerCase().includes(fl.nama.toLowerCase()) || (fl.kode && s.pendidikanFormal.toLowerCase().includes(fl.kode.toLowerCase()))) {
+                    currentFormalLembaga = fl;
+                    break;
+                  }
+                }
+              }
+
+              const pendingState = pendingFormalKelas[s.id] || {
+                lem: currentFormalLembaga,
+                cls: currentFormalClass
+              };
+
+              return (
+                <>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[12px]">
+                      <School className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>Pendidikan Formal</span>
+                    </div>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                      isEmis 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {isEmis ? 'EMIS Terdaftar' : 'Belum EMIS'}
+                    </span>
+                  </div>
+
+                  {/* Box 1 (Atas) - Select Lembaga */}
+                  <div className="mb-3">
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                      1. Pilih Lembaga Formal
+                    </label>
+                    <select
+                      value={pendingState.lem ? String(pendingState.lem.id) : ''}
+                      onChange={(e) => {
+                        const chosenId = e.target.value;
+                        const selectedLem = formalLembagas.find(l => String(l.id) === chosenId) || null;
+                        setPendingFormalKelas(prev => ({
+                          ...prev,
+                          [s.id]: {
+                            lem: selectedLem,
+                            cls: null
+                          }
+                        }));
+                      }}
+                      className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition-all shadow-2xs cursor-pointer"
+                    >
+                      <option value="">-- Tanpa Lembaga Formal --</option>
+                      {formalLembagas
+                        .filter(fl => isGenderMatch(fl.gender, s.gender))
+                        .map((fl) => (
+                          <option key={fl.id} value={String(fl.id)}>
+                            {fl.nama} {fl.kode ? `(${fl.kode})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Box 2 (Bawah) - Select Kelas */}
+                  <div className="mb-3">
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                      2. Pilih Kelas / Status
+                    </label>
+                    <select
+                      disabled={!pendingState.lem}
+                      value={pendingState.cls && isEmis ? String(pendingState.cls.id) : 'calon'}
+                      onChange={(e) => {
+                        const chosenClassId = e.target.value;
+                        let selectedCls: Kelas | null = null;
+                        if (pendingState.lem && chosenClassId !== 'calon' && isEmis) {
+                          selectedCls = kelasList.find(k => String(k.id) === chosenClassId) || null;
+                        }
+                        setPendingFormalKelas(prev => ({
+                          ...prev,
+                          [s.id]: {
+                            ...prev[s.id],
+                            cls: selectedCls
+                          }
+                        }));
+                      }}
+                      className={`w-full px-2.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
+                        !pendingState.lem
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                          : 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 cursor-pointer'
+                      }`}
+                    >
+                      {!pendingState.lem ? (
+                        <option value="">Pilih Lembaga Terlebih Dahulu</option>
+                      ) : (
+                        <>
+                          <option value="calon">Calon Peserta Didik (Default)</option>
+                          {kelasList
+                            .filter(k => String(k.lembagaId || (k as any).lembaga_id) === String(pendingState.lem?.id))
+                            .map((k) => (
+                              <option
+                                key={k.id}
+                                value={String(k.id)}
+                                disabled={!isEmis}
+                                className={!isEmis ? 'text-slate-400 bg-slate-100' : ''}
+                              >
+                                {k.nama} {!isEmis ? ' (Perlu EMIS)' : ''}
+                              </option>
+                            ))
+                          }
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Info box for EMIS */}
+                  {!isEmis && (
+                    <div className="mb-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[10.5px] text-amber-900 font-medium leading-snug flex items-center gap-1.5 shadow-2xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span>Daftarkan EMIS sebelum mendistribusikan ke kelas</span>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveFormalKelasDropdownId(null);
+                        setFormalKelasDropdownPos(null);
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 cursor-pointer transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateFormalClass(s, pendingState.lem, pendingState.cls);
+                        setActiveFormalKelasDropdownId(null);
+                        setFormalKelasDropdownPos(null);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors flex items-center gap-1"
+                    >
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      <span>Simpan</span>
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Viewport-sticky floating header (rendered via Portal to avoid being trapped by parent transform layout) */}
       {typeof document !== 'undefined' && createPortal(

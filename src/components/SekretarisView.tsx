@@ -1281,33 +1281,6 @@ export default function SekretarisView({
           {/* Top Segmented Layout Tabs & Export Button */}
           {subTab !== 'overview' && (
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
-                <button
-                  id="tab-view-card"
-                  onClick={() => setViewMode('card')}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
-                    viewMode === 'card'
-                      ? 'bg-white text-emerald-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title="Mode Kartu"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </button>
-                <button
-                  id="tab-view-table"
-                  onClick={() => setViewMode('table')}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
-                    viewMode === 'table'
-                      ? 'bg-white text-emerald-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title="Mode Tabel"
-                >
-                  <Table className="h-4 w-4" />
-                </button>
-              </div>
-
               {viewMode === 'table' && (
                 <button
                   id="btn-toggle-monitoring"
@@ -1322,6 +1295,33 @@ export default function SekretarisView({
                   <Activity className="h-4 w-4" />
                 </button>
               )}
+
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
+                <button
+                  id="tab-view-table"
+                  onClick={() => setViewMode('table')}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
+                    viewMode === 'table'
+                      ? 'bg-white text-emerald-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Mode Tabel"
+                >
+                  <Table className="h-4 w-4" />
+                </button>
+                <button
+                  id="tab-view-card"
+                  onClick={() => setViewMode('card')}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
+                    viewMode === 'card'
+                      ? 'bg-white text-emerald-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Mode Kartu"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+              </div>
 
               <button
                 id="btn-export-trigger"

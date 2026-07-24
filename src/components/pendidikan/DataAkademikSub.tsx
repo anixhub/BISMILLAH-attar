@@ -144,6 +144,11 @@ export default function DataAkademikSub({
   // Detail Modal State
   const [selectedSantri, setSelectedSantri] = useState<Santri | null>(null);
 
+  // Transfer Student Modal State
+  const [transferStudent, setTransferStudent] = useState<Santri | null>(null);
+  const [transferLembagaId, setTransferLembagaId] = useState<string>('');
+  const [destClassId, setDestClassId] = useState<string>('');
+
   // Custom filter dropdown states
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [isLembagaDropdownOpen, setIsLembagaDropdownOpen] = useState(false);
@@ -224,6 +229,72 @@ export default function DataAkademikSub({
     }
 
     return activeClasses;
+  };
+
+  // Helper to get student's class name in a specific Lembaga
+  const getStudentClassInLembaga = (s: Santri, l: Lembaga): string | null => {
+    const norm = (str?: string | null) => (str || '').trim().toLowerCase();
+    const targetId = norm(l.id);
+    const targetNama = norm(l.nama);
+    const targetKode = norm(l.kode);
+
+    // 1. Check s.pendidikanFormal
+    if (s.pendidikanFormal) {
+      const formalParts = s.pendidikanFormal.split(',').map(x => norm(x)).filter(Boolean);
+      for (const pf of formalParts) {
+        if (
+          pf === targetId ||
+          (targetNama && pf === targetNama) ||
+          (targetKode && pf === targetKode) ||
+          (targetNama && targetNama.length > 2 && (pf.includes(targetNama) || targetNama.includes(pf))) ||
+          (targetKode && targetKode.length > 2 && (pf.includes(targetKode) || targetKode.includes(pf)))
+        ) {
+          const dashParts = pf.split('-');
+          if (dashParts.length > 1) {
+            const clsPart = dashParts.slice(1).join('-').trim();
+            if (clsPart) return clsPart.toUpperCase();
+          }
+          return 'Calon Peserta Didik';
+        }
+      }
+    }
+
+    // 2. Check s.pendidikanInternal
+    if (s.pendidikanInternal) {
+      const internalParts = s.pendidikanInternal.split(',').map(x => norm(x)).filter(Boolean);
+      for (const pi of internalParts) {
+        if (
+          pi === targetId ||
+          (targetNama && pi === targetNama) ||
+          (targetKode && pi === targetKode) ||
+          (targetNama && targetNama.length > 2 && (pi.includes(targetNama) || targetNama.includes(pi))) ||
+          (targetKode && targetKode.length > 2 && (pi.includes(targetKode) || targetKode.includes(pi)))
+        ) {
+          const dashParts = pi.split('-');
+          if (dashParts.length > 1) {
+            const clsPart = dashParts.slice(1).join('-').trim();
+            if (clsPart) return clsPart.toUpperCase();
+          }
+          return 'Calon Peserta Didik';
+        }
+      }
+    }
+
+    // 3. Check s.kelas matching any class in kelasList belonging to this lembaga
+    if (s.kelas) {
+      const sClasses = s.kelas.split(',').map(x => norm(x)).filter(Boolean);
+      const classesOfL = kelasList.filter(k => {
+        const lemId = norm((k as any).lembagaId || (k as any).lembaga_id);
+        return lemId === targetId;
+      });
+      for (const k of classesOfL) {
+        if (k.nama && sClasses.includes(norm(k.nama))) {
+          return k.nama;
+        }
+      }
+    }
+
+    return null;
   };
 
   // Helper to resolve student Rombel groups
@@ -1732,12 +1803,16 @@ export default function DataAkademikSub({
                       {/* Academic Assignment Details Cells */}
                       {academicType !== 'rombel' ? (
                         activeLembagas.map(lem => {
-                          const match = classInfo.find(c => c.lembagaId === lem.id);
+                          const clsName = getStudentClassInLembaga(s, lem);
                           return (
                             <td key={lem.id} className="px-6 py-4 text-xs font-semibold whitespace-nowrap">
-                              {match ? (
-                                <span className="inline-flex items-center rounded-xl bg-indigo-50 text-indigo-800 px-2.5 py-1 font-extrabold border border-indigo-100 shadow-xs">
-                                  {match.className}
+                              {clsName ? (
+                                <span className={`inline-flex items-center rounded-xl px-2.5 py-1 font-extrabold border shadow-xs ${
+                                  clsName === 'Calon Peserta Didik'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-indigo-50 text-indigo-800 border-indigo-100'
+                                }`}>
+                                  {clsName}
                                 </span>
                               ) : (
                                 <span className="text-slate-400 font-semibold">-</span>
@@ -1812,6 +1887,19 @@ export default function DataAkademikSub({
                                         >
                                           <Eye className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                                           <span>Biodata</span>
+                                        </button>
+
+                                        {/* Pindah option */}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setTransferStudent(s);
+                                            setOpenDropdownRowId(null);
+                                          }}
+                                          className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer border-none text-left"
+                                        >
+                                          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                          <span>Pindah</span>
                                         </button>
 
                                         <button
@@ -2209,6 +2297,172 @@ export default function DataAkademikSub({
         selectedSantri={selectedSantri} 
         onClose={() => setSelectedSantri(null)} 
       />
+
+      {/* --- PINDAH KELAS MODAL --- */}
+      <AnimatePresence>
+        {transferStudent && (() => {
+          const studentGender = transferStudent.gender || genderFilter;
+          const targetKind = academicType === 'internal' ? 'Internal' : 'Formal';
+          const eligibleLembagas = lembagasList.filter(l => 
+            getLembagaJenis(l) === targetKind && (!l.gender || (l.gender as string) === (studentGender as string) || (l.gender as string) === 'Campuran' || (l.gender as string) === 'Semua')
+          );
+          const activeLemId = transferLembagaId || (eligibleLembagas[0]?.id || '');
+          const currentLemObj = lembagasList.find(l => l.id === activeLemId) || eligibleLembagas[0];
+          const isFormalTarget = (currentLemObj?.jenis === 'Formal' || targetKind === 'Formal');
+          const isStudentEmis = isEmisTerdaftar(transferStudent.statusEmis);
+
+          let targetClasses = kelasList.filter(k => {
+            const lemId = String((k as any).lembagaId || (k as any).lembaga_id || '');
+            return lemId === String(activeLemId);
+          });
+
+          if (isFormalTarget && !isStudentEmis) {
+            targetClasses = targetClasses.filter(c => (c as any).isDefault || c.nama.trim().toLowerCase() === 'calon peserta didik');
+            if (targetClasses.length === 0) {
+              targetClasses = [{
+                id: 'default-' + activeLemId,
+                lembagaId: String(activeLemId),
+                nama: 'Calon Peserta Didik',
+                waliKelas: '-',
+                tingkatan: 'Lainnya',
+                isDefault: true
+              } as any];
+            }
+          }
+
+          const handleExecuteTransferModal = () => {
+            if (!transferStudent || !activeLemId) return;
+            const destClassObj = targetClasses.find(c => c.id === destClassId) || targetClasses[0] || { nama: 'Calon Peserta Didik' };
+            const targetLemObj = lembagasList.find(l => l.id === activeLemId);
+
+            if (onUpdateSantri) {
+              let newFormal = transferStudent.pendidikanFormal;
+              let newInternal = transferStudent.pendidikanInternal;
+              
+              if (isFormalTarget) {
+                newFormal = destClassObj.nama !== 'Calon Peserta Didik' ? `${targetLemObj?.nama || ''} - ${destClassObj.nama}` : `${targetLemObj?.nama || ''}`;
+              } else {
+                newInternal = destClassObj.nama !== 'Calon Peserta Didik' ? `${targetLemObj?.nama || ''} - ${destClassObj.nama}` : `${targetLemObj?.nama || ''}`;
+              }
+
+              let updatedClasses = transferStudent.kelas ? transferStudent.kelas.split(',').map(x => x.trim()).filter(Boolean) : [];
+              if (!updatedClasses.includes(destClassObj.nama) && destClassObj.nama !== 'Calon Peserta Didik') {
+                updatedClasses.push(destClassObj.nama);
+              }
+
+              onUpdateSantri({
+                ...transferStudent,
+                kelas: updatedClasses.join(', '),
+                pendidikanFormal: newFormal,
+                pendidikanInternal: newInternal
+              });
+            }
+
+            setToast({
+              message: `${transferStudent.nama} dipindahkan ke ${targetLemObj?.nama || ''} - ${destClassObj.nama}.`,
+              type: 'success'
+            });
+            setTransferStudent(null);
+            setTransferLembagaId('');
+            setDestClassId('');
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 animate-fade-in">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl border border-slate-100 shadow-xl max-w-sm w-full overflow-hidden"
+              >
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                    Pindahkan Santri
+                  </h3>
+                  <button onClick={() => { setTransferStudent(null); setTransferLembagaId(''); setDestClassId(''); }} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 cursor-pointer">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4 text-xs font-medium text-slate-600">
+                  <p className="leading-relaxed">
+                    Pindahkan <strong className="text-slate-800 font-extrabold">{transferStudent.nama}</strong> ({studentGender}) ke:
+                  </p>
+
+                  {/* Kotak 1: Pilih Lembaga */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      1. Pilih Lembaga Tujuan ({targetKind})
+                    </label>
+                    <select
+                      value={activeLemId}
+                      onChange={(e) => {
+                        setTransferLembagaId(e.target.value);
+                        setDestClassId('');
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all shadow-2xs cursor-pointer"
+                    >
+                      {eligibleLembagas.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.nama} {l.kode ? `(${l.kode})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Kotak 2: Pilih Kelas */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      2. Pilih Kelas Tujuan
+                    </label>
+                    {targetClasses.length === 0 ? (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 font-medium leading-relaxed">
+                        <span className="font-extrabold block mb-0.5">⚠️ Tidak ada kelas tujuan</span>
+                        Lembaga <strong>{currentLemObj?.nama}</strong> belum memiliki kelas tujuan.
+                      </div>
+                    ) : (
+                      <select
+                        value={destClassId}
+                        onChange={(e) => setDestClassId(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all shadow-2xs cursor-pointer"
+                      >
+                        <option value="">-- Pilih Kelas --</option>
+                        {targetClasses.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.nama} {c.waliKelas && c.waliKelas !== '-' ? `(${c.waliKelas})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {isFormalTarget && !isStudentEmis && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 font-medium leading-relaxed">
+                      ⚠️ Santri belum terdaftar EMIS. Pada pendidikan formal, kelas tujuan dibatasi hanya ke <strong>"Calon Peserta Didik"</strong>.
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => { setTransferStudent(null); setTransferLembagaId(''); setDestClassId(''); }}
+                    className="px-3 py-1.5 border border-slate-250 text-slate-500 rounded-lg text-xs font-bold cursor-pointer"
+                  >
+                    BATAL
+                  </button>
+                  <button
+                    onClick={handleExecuteTransferModal}
+                    disabled={!destClassId}
+                    className="px-4.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-indigo-700 shadow-xs cursor-pointer"
+                  >
+                    PINDAHKAN
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
 
     </div>
   );

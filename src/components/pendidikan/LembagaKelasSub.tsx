@@ -1117,12 +1117,33 @@ export default function LembagaKelasSub({
       const alreadyAssignedIds = assignmentsList
         .filter(a => a.kelompokId === selectedKelas.id)
         .map(a => a.santriId);
-      return santriList.filter(s => s.gender === selectedGender && !alreadyAssignedIds.includes(s.id));
-    } else {
+      return santriList.filter(s => s.gender === selectedGender && (s.statusKeanggotaan ? s.statusKeanggotaan === 'Aktif' : true) && !alreadyAssignedIds.includes(s.id));
+    } else if (activeTab === 'Internal') {
+      // Internal Pondok: Only active santri (whether EMIS terdaftar or not)
       return santriList.filter(s => {
         if (s.gender !== selectedGender) return false;
+        if (s.statusKeanggotaan && s.statusKeanggotaan !== 'Aktif') return false;
         const sClassesLower = s.kelas ? s.kelas.split(',').map(x => x.trim().toLowerCase()) : [];
         if (selectedKelas && sClassesLower.includes(selectedKelas.nama.toLowerCase())) return false;
+        return true;
+      });
+    } else {
+      // Formal Education: Santri housed in "Calon Peserta Didik" of selectedLembaga AND who are EMIS Terdaftar
+      const defaultClassObj = getClassesOfLembaga(selectedLembaga?.id).find(isDefaultClass) || {
+        id: 'default-' + selectedLembaga?.id,
+        lembagaId: String(selectedLembaga?.id),
+        nama: 'Calon Peserta Didik',
+        waliKelas: '-',
+        tingkatan: 'Lainnya',
+        isDefault: true
+      };
+      
+      const cpStudents = getStudentsInClass(defaultClassObj, selectedLembaga);
+      return cpStudents.filter(s => {
+        if (s.gender !== selectedGender) return false;
+        if (s.statusKeanggotaan && s.statusKeanggotaan !== 'Aktif') return false;
+        if (!isEmisTerdaftar(s.statusEmis)) return false;
+        if (selectedKelas && selectedKelas.id === defaultClassObj.id) return false;
         return true;
       });
     }
@@ -2971,7 +2992,10 @@ export default function LembagaKelasSub({
           );
           const activeLemId = transferLembagaId || selectedLembaga.id;
           const currentLemObj = lembagasList.find(l => l.id === activeLemId) || selectedLembaga;
-          const targetClasses = kelasList.filter(k => {
+          const isFormalTarget = (currentLemObj?.jenis === 'Formal' || targetKind === 'Formal');
+          const isStudentEmis = isEmisTerdaftar(transferStudent.statusEmis);
+
+          let targetClasses = kelasList.filter(k => {
             const lemId = getClsLembagaId(k);
             return lemId === String(activeLemId);
           }).filter(c => {
@@ -2980,6 +3004,21 @@ export default function LembagaKelasSub({
             }
             return true;
           });
+
+          if (isFormalTarget && !isStudentEmis) {
+            targetClasses = targetClasses.filter(c => isDefaultClass(c) || c.nama.trim().toLowerCase() === 'calon peserta didik');
+            // If targetClasses is empty (no explicit default class in DB for activeLemId), provide synthetic default class
+            if (targetClasses.length === 0) {
+              targetClasses = [{
+                id: 'default-' + activeLemId,
+                lembagaId: String(activeLemId),
+                nama: 'Calon Peserta Didik',
+                waliKelas: '-',
+                tingkatan: 'Lainnya',
+                isDefault: true
+              }];
+            }
+          }
 
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 animate-fade-in">
