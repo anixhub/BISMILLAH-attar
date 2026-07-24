@@ -50,6 +50,7 @@ interface SantriTableViewProps {
   canWritePutri: boolean;
   ageFilterConfig?: AgeFilterConfig;
   onUpdateSantri?: (s: Santri) => void;
+  isMonitoringMode?: boolean;
 }
 
 const isSantriDataComplete = (s: Santri): boolean => {
@@ -92,6 +93,89 @@ const isMonitoringWajibComplete = (s: Santri): boolean => {
   return true;
 };
 
+const isCellEmpty = (s: Santri, key: string): boolean => {
+  switch (key) {
+    case 'nama':
+      return !s.nama || !s.nama.trim();
+    case 'nis':
+      return !s.nis || !s.nis.trim() || s.nis === '-';
+    case 'nisn':
+      return !s.nisn || !s.nisn.trim() || s.nisn === '-';
+    case 'nik':
+      return !s.nik || !s.nik.trim() || s.nik === '-';
+    case 'umur':
+      return !s.tanggalLahir;
+    case 'nism':
+      return !s.nism || !s.nism.trim() || s.nism === '-';
+    case 'noKk':
+      return !s.noKk || !s.noKk.trim() || s.noKk === '-';
+    case 'tempatLahir':
+      return !s.tempatLahir || !s.tempatLahir.trim() || s.tempatLahir === '-';
+    case 'tanggalLahir':
+      return !s.tanggalLahir || !s.tanggalLahir.trim() || s.tanggalLahir === '-';
+    case 'gender':
+      return !s.gender;
+    case 'pendidikanTerakhir':
+      return !s.pendidikanTerakhir || !s.pendidikanTerakhir.trim() || s.pendidikanTerakhir === '-';
+    case 'pendidikanFormal':
+      return !s.pendidikanFormal || s.pendidikanFormal.trim() === '' || s.pendidikanFormal === 'TIDAK TERDAFTAR' || s.pendidikanFormal === 'Belum / Non-Formal';
+    case 'anakKe':
+      return s.anakKe === undefined || s.anakKe === null || s.anakKe === 0;
+    case 'dariBersaudara':
+      return s.dariBersaudara === undefined || s.dariBersaudara === null || s.dariBersaudara === 0;
+    case 'namaAyah':
+      return !s.namaAyah || !s.namaAyah.trim() || s.namaAyah === '-';
+    case 'nikAyah':
+      return !s.nikAyah || !s.nikAyah.trim() || s.nikAyah === '-';
+    case 'pekerjaanAyah':
+      return !s.pekerjaanAyah || !s.pekerjaanAyah.trim() || s.pekerjaanAyah === '-';
+    case 'pendidikanAyah':
+      return !s.pendidikanAyah || !s.pendidikanAyah.trim() || s.pendidikanAyah === '-';
+    case 'namaIbu':
+      return !s.namaIbu || !s.namaIbu.trim() || s.namaIbu === '-';
+    case 'nikIbu':
+      return !s.nikIbu || !s.nikIbu.trim() || s.nikIbu === '-';
+    case 'pekerjaanIbu':
+      return !s.pekerjaanIbu || !s.pekerjaanIbu.trim() || s.pekerjaanIbu === '-';
+    case 'pendidikanIbu':
+      return !s.pendidikanIbu || !s.pendidikanIbu.trim() || s.pendidikanIbu === '-';
+    case 'alamat':
+      return !s.alamat || !s.alamat.trim() || s.alamat === '-';
+    case 'rt':
+      return !s.rt || String(s.rt).trim() === '' || String(s.rt).trim() === '0' || String(s.rt).trim() === '-';
+    case 'rw':
+      return !s.rw || String(s.rw).trim() === '' || String(s.rw).trim() === '0' || String(s.rw).trim() === '-';
+    case 'desa':
+      return !s.desa || !s.desa.trim() || s.desa === '-';
+    case 'kecamatan':
+      return !s.kecamatan || !s.kecamatan.trim() || s.kecamatan === '-';
+    case 'kabupaten':
+      return (!s.kabupaten && !s.asal) || (s.kabupaten && s.kabupaten.trim() === '-');
+    case 'provinsi':
+      return !s.provinsi || !s.provinsi.trim() || s.provinsi === '-';
+    case 'jarakRumah':
+      return !s.jarakRumah || s.jarakRumah === 0;
+    case 'noHp':
+      return !s.noHp || !s.noHp.trim() || s.noHp === '-';
+    case 'statusDomisili':
+      return s.statusKeanggotaan === 'Aktif' && (!s.statusDomisili || s.statusDomisili.trim() === '' || s.statusDomisili === '-');
+    case 'tanggalMasuk':
+      return !s.tanggalMasuk || !s.tanggalMasuk.trim() || s.tanggalMasuk === '-';
+    case 'tanggalKeluar':
+      return s.statusKeanggotaan !== 'Aktif' && (!s.tanggalKeluar || !s.tanggalKeluar.trim() || s.tanggalKeluar === '-');
+    case 'catatan':
+      return false;
+    case 'statusKeanggotaan':
+      return !s.statusKeanggotaan;
+    case 'statusEmis':
+      return !s.statusEmis || s.statusEmis.toLowerCase() !== 'terdaftar';
+    default: {
+      const val = (s as any)[key];
+      return val === undefined || val === null || String(val).trim() === '' || String(val).trim() === '-';
+    }
+  }
+};
+
 export default function SantriTableView({
   paginatedSantri,
   startIndex,
@@ -115,8 +199,18 @@ export default function SantriTableView({
   canWritePutra,
   canWritePutri,
   ageFilterConfig,
-  onUpdateSantri
+  onUpdateSantri,
+  isMonitoringMode = false
 }: SantriTableViewProps) {
+  const isColumnComplete = (key: string): boolean => {
+    if (!paginatedSantri || paginatedSantri.length === 0) return true;
+    return paginatedSantri.every(s => !isCellEmpty(s, key));
+  };
+
+  const isNoColumnComplete = (): boolean => {
+    if (!paginatedSantri || paginatedSantri.length === 0) return true;
+    return paginatedSantri.every(s => isMonitoringWajibComplete(s));
+  };
   const [activeEmisDropdownId, setActiveEmisDropdownId] = React.useState<string | null>(null);
   const [activeStatusKeanggotaanDropdownId, setActiveStatusKeanggotaanDropdownId] = React.useState<string | null>(null);
   const [activeDomisiliDropdownId, setActiveDomisiliDropdownId] = React.useState<string | null>(null);
@@ -857,6 +951,8 @@ export default function SantriTableView({
     const stickyLeftClass = key === 'nama'
       ? (isSelectionMode ? 'sm:left-[112px] left-[112px]' : 'sm:left-[64px] left-[64px]')
       : '';
+    const complete = isColumnComplete(key);
+
     return (
       <th 
         onClick={() => {
@@ -867,7 +963,7 @@ export default function SantriTableView({
             setSortDirection('asc');
           }
         }}
-        className={`px-4 py-3 cursor-pointer transition-all select-none font-display text-xs font-bold uppercase tracking-wider sticky top-0 ${scrolledHeaderClass} ${
+        className={`px-4 py-3 cursor-pointer transition-all select-none font-display text-xs font-bold uppercase tracking-wider sticky top-0 relative ${scrolledHeaderClass} ${
           isSticky 
             ? `${stickyLeftClass} z-30 sm:shadow-[2px_0_5px_rgba(0,0,0,0.05)] md:w-[272px] w-[200px] md:min-w-[272px] min-w-[200px] md:max-w-[272px] max-w-[200px] border-r` 
             : `hover:bg-slate-100/80 z-20 ${widthClass || 'w-44 min-w-[176px]'}`
@@ -907,6 +1003,16 @@ export default function SantriTableView({
             <ChevronLeft className="h-4 w-4 stroke-[2.5] -translate-x-[0.5px]" />
           </button>
         )}
+
+        {/* Header completeness bar for Monitoring Mode */}
+        {isMonitoringMode && (
+          <div
+            className={`absolute bottom-0 left-0 right-0 h-1.5 transition-colors ${
+              complete ? 'bg-emerald-500' : 'bg-rose-500'
+            }`}
+            title={complete ? 'Semua data di kolom ini terisi lengkap' : 'Ada data di kolom ini yang belum terisi'}
+          />
+        )}
       </th>
     );
   };
@@ -914,7 +1020,7 @@ export default function SantriTableView({
   const renderTableHeadContents = (headerClass: string) => (
     <tr>
       {isSelectionMode && (
-        <th className={`px-3 py-4 text-center sticky top-0 left-0 z-35 border-r border-slate-100 w-12 min-w-[48px] transition-all duration-300 ${headerClass}`}>
+        <th className={`px-3 py-4 text-center sticky top-0 left-0 z-35 border-r border-slate-100 w-12 min-w-[48px] transition-all duration-300 relative ${headerClass}`}>
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
@@ -936,11 +1042,22 @@ export default function SantriTableView({
               }}
             />
           </div>
+          {isMonitoringMode && (
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-emerald-500" />
+          )}
         </th>
       )}
       {/* Nomor Column (Sticky Left) */}
-      <th className={`px-2 py-4 sticky top-0 ${isSelectionMode ? 'sm:left-[48px] left-[48px]' : 'sm:left-0 left-0'} z-35 w-16 min-w-[64px] font-display text-xs font-bold uppercase tracking-wider border-r border-slate-100 text-center transition-all duration-300 ${headerClass}`}>
+      <th className={`px-2 py-4 sticky top-0 ${isSelectionMode ? 'sm:left-[48px] left-[48px]' : 'sm:left-0 left-0'} z-35 w-16 min-w-[64px] font-display text-xs font-bold uppercase tracking-wider border-r border-slate-100 text-center transition-all duration-300 relative ${headerClass}`}>
         No.
+        {isMonitoringMode && (
+          <div
+            className={`absolute bottom-0 left-0 right-0 h-1.5 transition-colors ${
+              isNoColumnComplete() ? 'bg-emerald-500' : 'bg-rose-500'
+            }`}
+            title={isNoColumnComplete() ? 'Semua santri data wajibnya lengkap' : 'Ada santri data wajibnya belum lengkap'}
+          />
+        )}
       </th>
       {/* Selalu Terlihat: Nama (berisi foto juga), NIS, NISN, NIK */}
       {renderSortHeader('nama', 'Nama Lengkap', true)}
@@ -1081,29 +1198,33 @@ export default function SantriTableView({
                     : 'bg-white text-slate-500 group-hover:bg-slate-50'
                 }`}>
                   <div className="flex items-center justify-center gap-2">
-                    {isMonitoringWajibComplete(s) ? (
-                      <div 
-                        className="inline-flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0 shadow-xs"
-                        title="Semua Data Wajib Monitoring Lengkap"
-                      >
-                        <Check className="h-2.5 w-2.5 stroke-[3.5]" />
-                      </div>
-                    ) : (
-                      <div 
-                        className="inline-flex h-4.5 w-4.5 items-center justify-center rounded-full bg-rose-50 text-rose-600 border border-rose-200 shrink-0 shadow-xs"
-                        title="Ada Data Wajib Monitoring Belum Lengkap"
-                      >
-                        <X className="h-2.5 w-2.5 stroke-[3.5]" />
-                      </div>
+                    {isMonitoringMode && (
+                      isMonitoringWajibComplete(s) ? (
+                        <div 
+                          className="inline-flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0 shadow-xs"
+                          title="Semua Data Wajib Monitoring Lengkap"
+                        >
+                          <Check className="h-2.5 w-2.5 stroke-[3.5]" />
+                        </div>
+                      ) : (
+                        <div 
+                          className="inline-flex h-4.5 w-4.5 items-center justify-center rounded-full bg-rose-50 text-rose-600 border border-rose-200 shrink-0 shadow-xs"
+                          title="Ada Data Wajib Monitoring Belum Lengkap"
+                        >
+                          <X className="h-2.5 w-2.5 stroke-[3.5]" />
+                        </div>
+                      )
                     )}
                     <span>{startIndex + idx + 1}</span>
                   </div>
                 </td>
                 {/* Name sticky column (Nama Lengkap) - Sticky on Desktop only */}
                 <td className={`px-4 py-4 font-medium static sm:sticky ${isSelectionMode ? 'sm:left-[112px] left-[112px]' : 'sm:left-[64px] left-[64px]'} transition-colors z-10 sm:shadow-[2px_0_5px_rgba(0,0,0,0.02)] border-r border-slate-100 md:w-[272px] w-[200px] md:min-w-[272px] min-w-[200px] md:max-w-[272px] max-w-[200px] ${
-                  isSelectionMode && isSelected
-                    ? 'bg-emerald-50 text-slate-900'
-                    : 'bg-white text-slate-900 group-hover:bg-slate-50'
+                  isMonitoringMode && isCellEmpty(s, 'nama')
+                    ? '!bg-rose-100/90 !text-rose-800'
+                    : isSelectionMode && isSelected
+                      ? 'bg-emerald-50 text-slate-900'
+                      : 'bg-white text-slate-900 group-hover:bg-slate-50'
                 }`}>
                   <div className="flex items-center gap-2">
                     {renderSantriAvatar(s, "h-8 w-8 shrink-0 rounded-full border border-slate-100 shadow-xs")}
@@ -1114,23 +1235,29 @@ export default function SantriTableView({
                 </td>
                 
                 {/* NIS */}
-                <td className="px-3 py-4 whitespace-nowrap text-xs font-semibold text-slate-700 w-[110px] min-w-[110px]">
+                <td className={`px-3 py-4 whitespace-nowrap text-xs font-semibold text-slate-700 w-[110px] min-w-[110px] ${
+                  isMonitoringMode && isCellEmpty(s, 'nis') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                }`}>
                   {renderEditableCell(s, 'nis', s.nis, { className: 'font-mono' })}
                 </td>
 
                 {/* Selalu Terlihat: NISN & NIK */}
-                <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[120px] min-w-[120px]">
+                <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[120px] min-w-[120px] ${
+                  isMonitoringMode && isCellEmpty(s, 'nisn') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                }`}>
                   {renderEditableCell(s, 'nisn', s.nisn || '-', { className: 'font-mono' })}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px]">
+                <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px] ${
+                  isMonitoringMode && isCellEmpty(s, 'nik') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                }`}>
                   {renderEditableCell(s, 'nik', s.nik || '-', { className: 'font-mono' })}
                 </td>
 
-
-
                 {/* Kolom Umur jika Filter Umur Aktif */}
                 {ageFilterConfig?.enabled && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs font-bold font-mono text-emerald-800 bg-emerald-50/40 w-[125px] min-w-[125px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs font-bold font-mono text-emerald-800 bg-emerald-50/40 w-[125px] min-w-[125px] ${
+                    isMonitoringMode && isCellEmpty(s, 'umur') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {(() => {
                       const refDate = ageFilterConfig.refType === 'custom' && ageFilterConfig.customDate
                         ? new Date(ageFilterConfig.customDate)
@@ -1143,29 +1270,39 @@ export default function SantriTableView({
 
                 {/* Toggable */}
                 {visibleColumns.nism && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[120px] min-w-[120px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[120px] min-w-[120px] ${
+                    isMonitoringMode && isCellEmpty(s, 'nism') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'nism', s.nism || '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.noKk && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px] ${
+                    isMonitoringMode && isCellEmpty(s, 'noKk') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'noKk', s.noKk || '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.tempatLahir && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs font-medium text-slate-700 font-display w-[130px] min-w-[130px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs font-medium text-slate-700 font-display w-[130px] min-w-[130px] ${
+                    isMonitoringMode && isCellEmpty(s, 'tempatLahir') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'tempatLahir', s.tempatLahir || '-')}
                   </td>
                 )}
                 {visibleColumns.tanggalLahir && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[125px] min-w-[125px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[125px] min-w-[125px] ${
+                    isMonitoringMode && isCellEmpty(s, 'tanggalLahir') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'tanggalLahir', s.tanggalLahir || '-', { type: 'date', className: 'font-mono' })}
                   </td>
                 )}
 
                 {/* Toggable */}
                 {visibleColumns.gender && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs w-[110px] min-w-[110px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs w-[110px] min-w-[110px] ${
+                    isMonitoringMode && isCellEmpty(s, 'gender') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(
                       s,
                       'gender',
@@ -1181,7 +1318,9 @@ export default function SantriTableView({
                   </td>
                 )}
                 {visibleColumns.pendidikanTerakhir && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[160px] min-w-[160px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[160px] min-w-[160px] ${
+                    isMonitoringMode && isCellEmpty(s, 'pendidikanTerakhir') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'pendidikanTerakhir', s.pendidikanTerakhir || 'SD/MI', {
                       type: 'select',
                       selectOptions: ['SD/MI', 'SMP/MTs', 'SMA/MA/SMK', 'D3/S1/S2', 'Lainnya']
@@ -1435,32 +1574,44 @@ export default function SantriTableView({
                   </td>
                 )}
                 {visibleColumns.anakKe && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[90px] min-w-[90px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[90px] min-w-[90px] ${
+                    isMonitoringMode && isCellEmpty(s, 'anakKe') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'anakKe', s.anakKe !== undefined ? s.anakKe : '-', { type: 'number', className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.dariBersaudara && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[125px] min-w-[125px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[125px] min-w-[125px] ${
+                    isMonitoringMode && isCellEmpty(s, 'dariBersaudara') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'dariBersaudara', s.dariBersaudara !== undefined ? s.dariBersaudara : '-', { type: 'number', className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.namaAyah && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[150px] truncate w-[150px] min-w-[150px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[150px] truncate w-[150px] min-w-[150px] ${
+                    isMonitoringMode && isCellEmpty(s, 'namaAyah') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'namaAyah', s.namaAyah || '-')}
                   </td>
                 )}
                 {visibleColumns.nikAyah && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px] ${
+                    isMonitoringMode && isCellEmpty(s, 'nikAyah') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'nikAyah', s.nikAyah || '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.pekerjaanAyah && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[140px] truncate w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[140px] truncate w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'pekerjaanAyah') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'pekerjaanAyah', s.pekerjaanAyah || '-')}
                   </td>
                 )}
                 {visibleColumns.pendidikanAyah && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'pendidikanAyah') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'pendidikanAyah', s.pendidikanAyah || '-', {
                       type: 'select',
                       selectOptions: ['Tidak Sekolah', 'SD/MI', 'SMP/MTs', 'SMA/MA/SMK', 'D3/S1/S2/S3', 'Lainnya']
@@ -1468,22 +1619,30 @@ export default function SantriTableView({
                   </td>
                 )}
                 {visibleColumns.namaIbu && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[150px] truncate w-[150px] min-w-[150px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[150px] truncate w-[150px] min-w-[150px] ${
+                    isMonitoringMode && isCellEmpty(s, 'namaIbu') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'namaIbu', s.namaIbu || '-')}
                   </td>
                 )}
                 {visibleColumns.nikIbu && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[160px] min-w-[160px] ${
+                    isMonitoringMode && isCellEmpty(s, 'nikIbu') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'nikIbu', s.nikIbu || '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.pekerjaanIbu && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[140px] truncate w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 max-w-[140px] truncate w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'pekerjaanIbu') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'pekerjaanIbu', s.pekerjaanIbu || '-')}
                   </td>
                 )}
                 {visibleColumns.pendidikanIbu && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-700 w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'pendidikanIbu') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'pendidikanIbu', s.pendidikanIbu || '-', {
                       type: 'select',
                       selectOptions: ['Tidak Sekolah', 'SD/MI', 'SMP/MTs', 'SMA/MA/SMK', 'D3/S1/S2/S3', 'Lainnya']
@@ -1491,54 +1650,74 @@ export default function SantriTableView({
                   </td>
                 )}
                 {visibleColumns.alamat && (
-                  <td className="px-3 py-4 text-xs text-slate-600 max-w-[180px] truncate w-[180px] min-w-[180px]">
+                  <td className={`px-3 py-4 text-xs text-slate-600 max-w-[180px] truncate w-[180px] min-w-[180px] ${
+                    isMonitoringMode && isCellEmpty(s, 'alamat') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'alamat', s.alamat || '-')}
                   </td>
                 )}
                 {visibleColumns.rt && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[75px] min-w-[75px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[75px] min-w-[75px] ${
+                    isMonitoringMode && isCellEmpty(s, 'rt') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'rt', s.rt && String(s.rt).trim() !== '0' ? s.rt : '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.rw && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[75px] min-w-[75px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[75px] min-w-[75px] ${
+                    isMonitoringMode && isCellEmpty(s, 'rw') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'rw', s.rw && String(s.rw).trim() !== '0' ? s.rw : '-', { className: 'font-mono' })}
                   </td>
                 )}
 
                 {/* Toggable */}
                 {visibleColumns.desa && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'desa') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'desa', s.desa || '-')}
                   </td>
                 )}
                 {visibleColumns.kecamatan && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[140px] min-w-[140px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[140px] min-w-[140px] ${
+                    isMonitoringMode && isCellEmpty(s, 'kecamatan') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'kecamatan', s.kecamatan || '-')}
                   </td>
                 )}
                 {visibleColumns.kabupaten && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[150px] min-w-[150px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[150px] min-w-[150px] ${
+                    isMonitoringMode && isCellEmpty(s, 'kabupaten') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'kabupaten', s.kabupaten || s.asal || '-')}
                   </td>
                 )}
                 {visibleColumns.provinsi && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[150px] min-w-[150px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[150px] min-w-[150px] ${
+                    isMonitoringMode && isCellEmpty(s, 'provinsi') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'provinsi', s.provinsi || '-')}
                   </td>
                 )}
                 {visibleColumns.jarakRumah && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[110px] min-w-[110px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[110px] min-w-[110px] ${
+                    isMonitoringMode && isCellEmpty(s, 'jarakRumah') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'jarakRumah', s.jarakRumah && s.jarakRumah !== 0 ? `${s.jarakRumah} km` : '-', { type: 'number', className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.noHp && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[135px] min-w-[135px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-600 w-[135px] min-w-[135px] ${
+                    isMonitoringMode && isCellEmpty(s, 'noHp') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'noHp', s.noHp || '-', { className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.statusDomisili && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs w-[130px] min-w-[130px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs w-[130px] min-w-[130px] ${
+                    isMonitoringMode && isCellEmpty(s, 'statusDomisili') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {s.statusKeanggotaan === 'Aktif' ? (
                       (() => {
                         const canWrite = s.gender === 'Putri' ? canWritePutri : canWritePutra;
@@ -1657,23 +1836,31 @@ export default function SantriTableView({
                   </td>
                 )}
                 {visibleColumns.tanggalMasuk && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[115px] min-w-[115px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[115px] min-w-[115px] ${
+                    isMonitoringMode && isCellEmpty(s, 'tanggalMasuk') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'tanggalMasuk', s.tanggalMasuk || '-', { type: 'date', className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.tanggalKeluar && (
-                  <td className="px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[115px] min-w-[115px]">
+                  <td className={`px-3 py-4 whitespace-nowrap text-xs text-slate-500 w-[115px] min-w-[115px] ${
+                    isMonitoringMode && isCellEmpty(s, 'tanggalKeluar') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'tanggalKeluar', s.tanggalKeluar || '-', { type: 'date', className: 'font-mono' })}
                   </td>
                 )}
                 {visibleColumns.catatan && (
-                  <td className="px-3 py-4 text-xs text-slate-500 max-w-[180px] truncate w-[180px] min-w-[180px]">
+                  <td className={`px-3 py-4 text-xs text-slate-500 max-w-[180px] truncate w-[180px] min-w-[180px] ${
+                    isMonitoringMode && isCellEmpty(s, 'catatan') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                  }`}>
                     {renderEditableCell(s, 'catatan', s.catatan || '-')}
                   </td>
                 )}
 
                 {/* Selalu Terlihat: Status Keanggotaan & Status Emis */}
-                <td className="px-3 py-4 text-center whitespace-nowrap text-xs w-[115px] min-w-[115px]">
+                <td className={`px-3 py-4 text-center whitespace-nowrap text-xs w-[115px] min-w-[115px] ${
+                  isMonitoringMode && isCellEmpty(s, 'statusKeanggotaan') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                }`}>
                   {(() => {
                     const canWrite = s.gender === 'Putri' ? canWritePutri : canWritePutra;
                     const currentStatus = s.statusKeanggotaan || 'Aktif';
@@ -1795,7 +1982,9 @@ export default function SantriTableView({
                     );
                   })()}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-xs w-[115px] min-w-[115px]">
+                <td className={`px-3 py-4 whitespace-nowrap text-xs w-[115px] min-w-[115px] ${
+                  isMonitoringMode && isCellEmpty(s, 'statusEmis') ? '!bg-rose-100/90 !text-rose-800 font-medium' : ''
+                }`}>
                   {(() => {
                     const canWrite = s.gender === 'Putri' ? canWritePutri : canWritePutra;
                     const isTerdaftar = (s.statusEmis || 'Belum').toLowerCase() === 'terdaftar';

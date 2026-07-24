@@ -26,7 +26,8 @@ import {
   FileText,
   ArrowLeftRight,
   Check,
-  Calendar
+  Calendar,
+  Activity
 } from 'lucide-react';
 import { Santri } from '../types';
 import { DEFAULT_ROLES } from '../lib/permissions';
@@ -83,6 +84,7 @@ export default function SekretarisView({
     }
     return 'card';
   });
+  const [isMonitoringMode, setIsMonitoringMode] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isRealImportModalOpen, setIsRealImportModalOpen] = useState(false);
 
@@ -1279,32 +1281,47 @@ export default function SekretarisView({
           {/* Top Segmented Layout Tabs & Export Button */}
           {subTab !== 'overview' && (
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              <div className="inline-flex rounded-xl bg-slate-100 p-1">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
                 <button
                   id="tab-view-card"
                   onClick={() => setViewMode('card')}
-                  className={`flex items-center gap-1.5 rounded-lg px-4 py-2 font-display text-xs font-bold tracking-tight transition-all ${
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
                     viewMode === 'card'
                       ? 'bg-white text-emerald-800 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  title="Mode Kartu"
                 >
                   <LayoutGrid className="h-4 w-4" />
-                  <span>Mode Kartu</span>
                 </button>
                 <button
                   id="tab-view-table"
                   onClick={() => setViewMode('table')}
-                  className={`flex items-center gap-1.5 rounded-lg px-4 py-2 font-display text-xs font-bold tracking-tight transition-all ${
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg font-display text-xs font-bold tracking-tight transition-all cursor-pointer ${
                     viewMode === 'table'
                       ? 'bg-white text-emerald-800 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
+                  title="Mode Tabel"
                 >
                   <Table className="h-4 w-4" />
-                  <span>Mode Tabel</span>
                 </button>
               </div>
+
+              {viewMode === 'table' && (
+                <button
+                  id="btn-toggle-monitoring"
+                  onClick={() => setIsMonitoringMode(prev => !prev)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl font-display text-xs font-bold transition-all border cursor-pointer ${
+                    isMonitoringMode
+                      ? 'bg-rose-500 text-white border-rose-500 shadow-sm ring-2 ring-rose-200'
+                      : 'bg-slate-100 text-slate-500 border-transparent hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                  title={isMonitoringMode ? 'Nonaktifkan Mode Monitoring Data' : 'Aktifkan Mode Monitoring Data'}
+                >
+                  <Activity className="h-4 w-4" />
+                </button>
+              )}
 
               <button
                 id="btn-export-trigger"
@@ -1603,10 +1620,37 @@ export default function SekretarisView({
                         exit={{ opacity: 0, y: 10 }}
                         className="absolute left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 mt-2 w-56 sm:w-64 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl z-50 text-slate-700"
                       >
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5 border-b border-slate-50 pb-2">
-                          <Eye className="h-3.5 w-3.5 text-emerald-600" />
-                          Visibilitas Kolom
-                        </h4>
+                        <div className="mb-3 border-b border-slate-100 pb-2.5 flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                            <Eye className="h-3.5 w-3.5 text-emerald-600" />
+                            Visibilitas
+                          </h4>
+                          {(() => {
+                            const allChecked = Object.values(visibleColumns).every(Boolean);
+                            const isIndeterminate = Object.values(visibleColumns).some(Boolean) && !allChecked;
+                            return (
+                              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-emerald-700 hover:text-emerald-800 select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={allChecked}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = isIndeterminate;
+                                  }}
+                                  onChange={(e) => {
+                                    const val = e.target.checked;
+                                    const nextCols: Record<string, boolean> = {};
+                                    Object.keys(visibleColumns).forEach((k) => {
+                                      nextCols[k] = val;
+                                    });
+                                    setVisibleColumns(nextCols);
+                                  }}
+                                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <span>{allChecked ? 'Batal Semua' : 'Pilih Semua'}</span>
+                              </label>
+                            );
+                          })()}
+                        </div>
                         <div className="max-h-60 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
                           {Object.keys(visibleColumns).map((colKey) => {
                             const labels: Record<string, string> = {
@@ -1660,9 +1704,6 @@ export default function SekretarisView({
                               </label>
                             );
                           })}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-slate-50 text-[10px] text-slate-400 italic">
-                          * Kolom No, Nama, NIS, NISN, NIK, Status, Emis, dan Aksi selalu ditampilkan.
                         </div>
                       </motion.div>
                     </>
@@ -2307,6 +2348,7 @@ export default function SekretarisView({
               canWritePutri={canWritePutri}
               ageFilterConfig={ageFilterConfig}
               onUpdateSantri={handleUpdateSantriLocal}
+              isMonitoringMode={isMonitoringMode}
             />
           ) : (
             <SantriCardView
